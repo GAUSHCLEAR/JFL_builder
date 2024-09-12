@@ -60,11 +60,11 @@ for surface_id in surface_id_list:
                     for i in range(asphere_term):
                         asphere_params.append(
                             col1.number_input(f"A{(i+1)*2}", 
-                                format = format,
+                                format = "%.3e",
                                 key=f"{surface_id}_{param}_{seg}_{i}"))
+                    st.session_state[f"{surface_id}_{param}_{seg}"] = asphere_params
                 elif param == 'AsphereTerm':
                     col1.number_input(param, 
-                        format = format,
                         key=f"{surface_id}_{param}_{seg}", min_value=1, max_value=10, value=1)
                 else:
                     default_value = {
