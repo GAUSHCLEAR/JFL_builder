@@ -10,75 +10,94 @@ import json
 step = 0.0025
 format = "%.3f"
 
+st.set_page_config( 
+    layout="wide",menu_items=None)
+
+
+
 st.markdown("## 轴对称 JFL 生成器")
-st.info("本工具用于生成JFL文件，用于向车床提供加工数据")
 st.markdown("### 输入镜片参数")
-lens_thickness = st.number_input("镜片中心厚度",format = format, min_value=0.1, max_value=2.0, value=0.2)
-lens_diameter = st.number_input("镜片加工直径", format = format,min_value=1.0, max_value=100.0, value=10.6)
+column_input, column_output = st.columns([1,2])
+column_output.markdown("""
+本工具用于生成JFL文件，用于向车床提供加工数据
+* 加工镜片需要有3个面，前表面，后表面和边缘来描述。
+  * 按行业习惯，通常用XZ坐标系，Z轴为光轴，X轴为光轴垂直方向
+* 每个面可以有多个弧段，每个弧段可以是不同的面型
+    * 每一个弧段需要指定其半口径SemiDiameter,即弧段边缘到光轴的距离
+* 本工具支持的面型有：
+    * 标准面Standard：球面和非球面，需要输入曲率半径和非球面系数
+    * 偶次非球面EvenAsphere：需要输入偶次项的个数和每项的系数
+    * 离轴球面OffsetCircle：需要输入偏心距和球面半径
+    * 直线Line：需要输入直线终点的矢高
+"""
+)
+col1, col2 = column_input.columns(2)
+lens_thickness = col1.number_input("镜片中心厚度",format = format, min_value=0.1, max_value=2.0, value=0.2)
+lens_diameter = col2.number_input("镜片加工直径", format = format,min_value=1.0, max_value=100.0, value=10.6)
 # step = st.number_input("加工步长", min_value=0.001, max_value=0.1, value=0.0025)
+plot_placeholder = column_output.empty()
 
 lens_semidiameter = lens_diameter / 2
-st.markdown('---')
-st.info("镜片需要有3个面，前表面，后表面和边缘来描述。按行业习惯，通常用XZ坐标系，Z轴为光轴，X轴为光轴垂直方向")
-st.markdown('---')
-
 surface_id_list=['前表面','后表面','边缘']
 
-for surface_id in surface_id_list:
-    st.markdown(f"### 输入{surface_id}参数")
-    start_point_x = st.number_input(
-        f"{surface_id}起始点 X坐标", 
-        min_value=0.0, max_value=10.0, 
-        value=0.0 if surface_id != '边缘' else lens_semidiameter-1.0,
-        format = format,
-        key=f"{surface_id}_start_point_x")
-    start_point_z = st.number_input(
-        f"{surface_id}起始点 Z坐标", 
-        min_value=-10.0, max_value=10.0, 
-        value={"前表面":0.0,"后表面":lens_thickness,"边缘":3.0}[surface_id], 
-        format = format,
-        key=f"{surface_id}_start_point_z")
+tabs = column_input.tabs(surface_id_list)
 
-    num_of_segments = st.number_input(
-        f"{surface_id}弧段数", min_value=1, max_value=10, value=1,
-        key=f"{surface_id}_弧段数")
-    for seg in range(num_of_segments):
-        with st.expander(f"第{seg+1}弧段", expanded=True):
-            col1, col2 = st.columns(2)
-            type = col1.selectbox("面型", 
-                ['Standard','EvenAsphere', 'OffsetCircle',  'Line'],
-                key = f"{surface_id}_type_{seg}")
-            col2.info(f"{HELP_STRING['surface_explain'][type]}", icon="ℹ️")
+for tab, surface_id in zip(tabs,surface_id_list):
+    with tab:
+        st.markdown(f"### 输入{surface_id}参数")
+        start_point_x = st.number_input(
+            f"{surface_id}起始点 X坐标", 
+            min_value=0.0, max_value=10.0, 
+            value=0.0 if surface_id != '边缘' else lens_semidiameter-1.0,
+            format = format,
+            key=f"{surface_id}_start_point_x")
+        start_point_z = st.number_input(
+            f"{surface_id}起始点 Z坐标", 
+            min_value=-10.0, max_value=10.0, 
+            value={"前表面":0.0,"后表面":lens_thickness,"边缘":3.0}[surface_id], 
+            format = format,
+            key=f"{surface_id}_start_point_z")
 
-            params = PARAMS[type]
-            for param in params:
+        num_of_segments = st.number_input(
+            f"{surface_id}弧段数", min_value=1, max_value=10, value=1,
+            key=f"{surface_id}_弧段数")
+        for seg in range(num_of_segments):
+            with st.expander(f"第{seg+1}弧段", expanded=True):
                 col1, col2 = st.columns(2)
-                if param == 'AsphereParams':
-                    asphere_term = st.session_state[
-                        f"{surface_id}_AsphereTerm_{seg}"]
-                    asphere_params = []
-                    for i in range(asphere_term):
-                        asphere_params.append(
-                            col1.number_input(f"A{(i+1)*2}", 
-                                format = "%.3e",
-                                key=f"{surface_id}_{param}_{seg}_{i}"))
-                    st.session_state[f"{surface_id}_{param}_{seg}"] = asphere_params
-                elif param == 'AsphereTerm':
-                    col1.number_input(param, 
-                        key=f"{surface_id}_{param}_{seg}", min_value=1, max_value=10, value=1)
-                else:
-                    default_value = {
-                        "Radius": 10.0,
-                        "Conic": 0.0,
-                        'SemiDiameter': lens_semidiameter,
-                    }
-                    col1.number_input(param, 
-                        format = format,
-                        key=f"{surface_id}_{param}_{seg}",
-                        value = default_value.get(param, 0.0))
-                col2.info(f"* {HELP_STRING['params_explain'][param]}")
-            
-st.markdown('---')
+                type = st.selectbox("面型", 
+                    ['Standard','EvenAsphere', 'OffsetCircle',  'Line'],
+                    key = f"{surface_id}_type_{seg}")
+                # col2.info(f"{HELP_STRING['surface_explain'][type]}", icon="ℹ️")
+
+                params = PARAMS[type]
+                for param in params:
+                    col1, col2 = st.columns(2)
+                    if param == 'AsphereParams':
+                        asphere_term = st.session_state[
+                            f"{surface_id}_AsphereTerm_{seg}"]
+                        asphere_params = []
+                        for i in range(asphere_term):
+                            asphere_params.append(
+                                st.number_input(f"A{(i+1)*2}", 
+                                    format = "%.3e",
+                                    key=f"{surface_id}_{param}_{seg}_{i}"))
+                        st.session_state[f"{surface_id}_{param}_{seg}"] = asphere_params
+                    elif param == 'AsphereTerm':
+                        st.number_input(param, 
+                            key=f"{surface_id}_{param}_{seg}", min_value=1, max_value=10, value=1)
+                    else:
+                        default_value = {
+                            "Radius": 10.0,
+                            "Conic": 0.0,
+                            'SemiDiameter': lens_semidiameter,
+                        }
+                        st.number_input(param, 
+                            format = format,
+                            key=f"{surface_id}_{param}_{seg}",
+                            value = default_value.get(param, 0.0))
+                    # col2.info(f"* {HELP_STRING['params_explain'][param]}")
+                
+# st.markdown('---')
 # 绘图部分
 
 surface_sag = [{} for i in range(len(surface_id_list))]
@@ -110,6 +129,9 @@ try:
 except:
     pass 
 
+# 结果输出
+st.markdown('---')
+st.markdown("### 输出结果")
 try:
     segments={
         'F_XZ':np.vstack([surface_sag[0]['r'][::-1],surface_sag[0]['z'][::-1]]).T,
@@ -119,10 +141,9 @@ try:
 
     fig = plot_jfl_segments_with_arrows(segments)
     plt.axis('equal')
-    st.pyplot(fig)
+    plot_placeholder.pyplot(fig)
 
     jfl_string=build_jfl_string(segments)
-    st.markdown('---')
     download_button1 = st.download_button(
         label="下载JFL文件",
         data=jfl_string,
