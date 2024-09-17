@@ -1,6 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -9,28 +8,29 @@ import json
 # Placeholder constants and functions (Replace these with your actual implementations)
 PARAMS = {
     'Standard': ['Radius', 'Conic', 'SemiDiameter'],
-    'EvenAsphere': ['AsphereTerm', 'AsphereParams', 'SemiDiameter'],
+    'EvenAsphere': ['Radius', 'Conic', 'AsphereTerm', 'AsphereParams', 'SemiDiameter'],
     'OffsetCircle': ['Radius', 'OffsetX', 'OffsetZ', 'SemiDiameter'],
     'Line': ['EndZ', 'SemiDiameter'],
 }
 
 def standard_sag(r, params, z0):
-    # Placeholder function for Standard surface
     Radius = params['Radius']
     Conic = params['Conic']
-    return z0 + (r**2) / (2 * Radius)  # Simplified
+    return z0 + (r**2) / (Radius * (1 + np.sqrt(1 - (1 + Conic) * (r/Radius)**2)))
 
 def even_asphere_sag(r, params, z0):
-    # Placeholder function for EvenAsphere surface
+    Radius = params['Radius']
+    Conic = params['Conic']
     AsphereParams = params['AsphereParams']
-    return z0 + sum([A * r**(2*(i+1)) for i, A in enumerate(AsphereParams)])
+    z = standard_sag(r, {'Radius': Radius, 'Conic': Conic}, z0)
+    for i, A in enumerate(AsphereParams):
+        z += A * r**(2*(i+2))
+    return z
 
 def offset_circle_sag(r, params, z0):
-    # Placeholder function for OffsetCircle surface
-    return z0 + np.sqrt(params['Radius']**2 - (r - params['OffsetX'])**2)
+    return z0 + np.sqrt(params['Radius']**2 - (r - params['OffsetX'])**2) + params['OffsetZ']
 
 def line_sag(r, params, z0):
-    # Placeholder function for Line surface
     return np.linspace(z0, params['EndZ'], len(r))
 
 TYPE_TO_FUNCTION = {
@@ -41,16 +41,24 @@ TYPE_TO_FUNCTION = {
 }
 
 def plot_jfl_segments_with_arrows(segments):
-    # Placeholder function for plotting
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8, 6))
     for key, data in segments.items():
         ax.plot(data[:, 0], data[:, 1], label=key)
     ax.legend()
+    ax.set_xlabel('X')
+    ax.set_ylabel('Z')
+    ax.set_title('JFL Segments')
+    ax.grid(True)
     return fig
 
 def build_jfl_string(segments):
-    # Placeholder function for building JFL string
-    return "JFL Data"
+    jfl_string = "JFL Data\n"
+    for key, data in segments.items():
+        jfl_string += f"{key}\n"
+        for point in data:
+            jfl_string += f"{point[0]:.6f} {point[1]:.6f}\n"
+        jfl_string += "END\n"
+    return jfl_string
 
 # Main application class
 class LensGeneratorApp(tk.Tk):
@@ -82,8 +90,26 @@ class LensGeneratorApp(tk.Tk):
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def create_input_frame(self):
+        # Create a canvas with scrollbar for the left frame
+        canvas = tk.Canvas(self.left_frame)
+        scrollbar = ttk.Scrollbar(self.left_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
         # Lens parameters
-        lens_params_frame = ttk.LabelFrame(self.left_frame, text="输入镜片参数")
+        lens_params_frame = ttk.LabelFrame(scrollable_frame, text="输入镜片参数")
         lens_params_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Label(lens_params_frame, text="镜片中心厚度").grid(row=0, column=0, sticky=tk.W)
@@ -98,14 +124,14 @@ class LensGeneratorApp(tk.Tk):
         self.lens_diameter_var.trace('w', self.update_semidiameter)
 
         # Surface tabs
-        self.surface_notebook = ttk.Notebook(self.left_frame)
+        self.surface_notebook = ttk.Notebook(scrollable_frame)
         self.surface_notebook.pack(fill=tk.BOTH, expand=True)
 
         for surface_id in self.surface_id_list:
             self.create_surface_tab(surface_id)
 
         # Buttons
-        buttons_frame = ttk.Frame(self.left_frame)
+        buttons_frame = ttk.Frame(scrollable_frame)
         buttons_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Button(buttons_frame, text="生成并绘图", command=self.generate_and_plot).pack(side=tk.LEFT, padx=5)
@@ -201,38 +227,39 @@ class LensGeneratorApp(tk.Tk):
 
         for param in params:
             ttk.Label(params_frame, text=param).pack(side=tk.TOP, anchor=tk.W)
-            param_var = tk.DoubleVar(value=0.0)
-            ttk.Entry(params_frame, textvariable=param_var).pack(side=tk.TOP, fill=tk.X)
-            segment['params_vars'][param] = param_var
-
-            # Special handling for AsphereParams
             if param == 'AsphereParams':
-                asphere_term = segment['params_vars']['AsphereTerm'].get() if 'AsphereTerm' in segment['params_vars'] else 1
-                self.create_asphere_params(params_frame, segment, asphere_term)
-
+                asphere_term = segment['params_vars'].get('AsphereTerm', tk.IntVar(value=1))
+                self.create_asphere_params(params_frame, segment, asphere_term.get())
             elif param == 'AsphereTerm':
+                param_var = tk.IntVar(value=1)
+                ttk.Entry(params_frame, textvariable=param_var).pack(side=tk.TOP, fill=tk.X)
                 param_var.trace('w', lambda *args, sid=surface_id, si=seg_index: self.update_asphere_params(sid, si))
+                segment['params_vars'][param] = param_var
+            else:
+                param_var = tk.DoubleVar(value=0.0)
+                ttk.Entry(params_frame, textvariable=param_var).pack(side=tk.TOP, fill=tk.X)
+                segment['params_vars'][param] = param_var
+
+        # Trigger plot update
+        self.generate_and_plot()
 
     def create_asphere_params(self, params_frame, segment, asphere_term):
-        # Clear existing AsphereParams widgets
-        for widget in params_frame.winfo_children():
-            if hasattr(widget, 'is_asphere_param'):
-                widget.destroy()
-
+        asphere_frame = ttk.Frame(params_frame)
+        asphere_frame.pack(side=tk.TOP, fill=tk.X)
         segment['params_vars']['AsphereParams'] = []
         for i in range(asphere_term):
-            ttk.Label(params_frame, text=f"A{(i + 1) * 2}").pack(side=tk.TOP, anchor=tk.W)
+            ttk.Label(asphere_frame, text=f"A{(i + 1) * 2}").grid(row=i, column=0, sticky=tk.W)
             param_var = tk.DoubleVar(value=0.0)
-            entry = ttk.Entry(params_frame, textvariable=param_var)
-            entry.pack(side=tk.TOP, fill=tk.X)
-            entry.is_asphere_param = True
+            ttk.Entry(asphere_frame, textvariable=param_var).grid(row=i, column=1, sticky=tk.W)
             segment['params_vars']['AsphereParams'].append(param_var)
 
     def update_asphere_params(self, surface_id, seg_index):
         segment = self.surface_data[surface_id]['segments'][seg_index]
         params_frame = segment['params_frame']
-        asphere_term = int(segment['params_vars']['AsphereTerm'].get())
+        asphere_term = segment['params_vars']['AsphereTerm'].get()
         self.create_asphere_params(params_frame, segment, asphere_term)
+        self.generate_and_plot()
+
 
     def generate_and_plot(self):
         try:
@@ -258,7 +285,6 @@ class LensGeneratorApp(tk.Tk):
 
                     func = TYPE_TO_FUNCTION[surface_type]
 
-                    # For simplicity, we assume SemiDiameter is in params
                     ROI_index = (r > r0) & (r <= params['SemiDiameter'])
                     r_ROI = r[ROI_index]
                     if len(r_ROI) == 0:
@@ -280,15 +306,22 @@ class LensGeneratorApp(tk.Tk):
 
             # Plotting
             self.figure.clear()
-            fig = plot_jfl_segments_with_arrows(segments)
-            plt.axis('equal')
+            ax = self.figure.add_subplot(111)
+            for key, data in segments.items():
+                ax.plot(data[:, 0], data[:, 1], label=key)
+            ax.legend()
+            ax.set_xlabel('X')
+            ax.set_ylabel('Z')
+            ax.set_title('JFL Segments')
+            ax.grid(True)
+            ax.axis('equal')
             self.canvas.draw()
 
             # Store segments for file saving
             self.segments = segments
 
         except Exception as e:
-            messagebox.showerror("错误", f"请填写完整参数。\n{e}")
+            messagebox.showerror("错误", f"生成图表时出错：{str(e)}")
 
     def download_jfl(self):
         if not hasattr(self, 'segments'):
