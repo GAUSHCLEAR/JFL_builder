@@ -5,9 +5,7 @@
   <title>Gaush OK5设计</title>
   <style>
     /* 全局样式 */
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: Arial, sans-serif;
@@ -18,7 +16,7 @@
       margin: 10px 0;
       text-align: center;
     }
-    /* 主容器为左右两栏布局（桌面端），移动端改为上下堆叠 */
+    /* 主容器：左右两栏布局（桌面端），移动端上下堆叠 */
     #container {
       display: flex;
       flex-direction: row;
@@ -26,7 +24,7 @@
       padding: 10px;
       gap: 20px;
     }
-    /* 左侧：参数输入、结果显示区域 */
+    /* 左侧：参数输入和结果显示 */
     #left-panel {
       flex: 0 0 340px;
       background: #ffffff;
@@ -35,7 +33,7 @@
       border-radius: 4px;
       box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
-    /* 主参数网格 */
+    /* 主输入参数网格 */
     #inputs {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
@@ -88,15 +86,12 @@
       align-items: center;
       font-size: 13px;
     }
-    .radius-params label span {
-      margin-right: 4px;
-    }
+    .radius-params label span { margin-right: 4px; }
     .radius-params input {
       width: 80px;
       padding: 3px;
       font-size: 13px;
     }
-
     /* 右侧：绘图区域 */
     #right-panel {
       flex: 1;
@@ -111,33 +106,27 @@
       border-radius: 4px;
       box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
-    /* 缩小画布尺寸 */
+    /* 画布尺寸调整 */
     canvas {
-      width: 500px;  /* 缩小宽度 */
-      height: 320px; /* 缩小高度 */
+      width: 500px;
+      height: 320px;
       display: block;
       border: 1px solid #ccc;
       background: #fff;
       margin: 0 auto;
     }
-    /* 响应式设计：移动端时改为上下布局 */
+    /* 响应式设计：移动端下改为上下排列 */
     @media (max-width: 768px) {
-      #container {
-        flex-direction: column;
-      }
-      #left-panel {
-        width: auto;
-      }
-      canvas {
-        width: 100% !important; /* 移动端下自适应宽度 */
-      }
+      #container { flex-direction: column; }
+      #left-panel { width: auto; }
+      canvas { width: 100% !important; }
     }
   </style>
 </head>
 <body>
   <h1>Gaush OK5设计</h1>
   <div id="container">
-    <!-- 左侧区域：参数输入、结果显示 -->
+    <!-- 左侧区域：参数输入和结果显示 -->
     <div id="left-panel">
       <!-- 基础输入参数区 -->
       <div id="inputs">
@@ -163,15 +152,8 @@
         <label>edgeLift (mm):
           <input id="edgeLift" type="number" value="0.1" step="any">
         </label>
-        <label>corneaAt0 (mm):
-          <input id="corneaAt0" type="number" value="0.005" step="any">
-        </label>
-        <label>SagBCAt0:
-          <input id="SagBCAt0" type="number" value="0" step="any">
-        </label>
       </div>
-
-      <!-- 其它可修改曲率参数 (不含 RCR) -->
+      <!-- 其它可修改曲率参数（不含 RCR） -->
       <fieldset>
         <legend>曲率半径 (可修改)</legend>
         <div class="radius-params">
@@ -192,7 +174,6 @@
           </label>
         </div>
       </fieldset>
-
       <!-- RCR 独立区域 -->
       <fieldset>
         <legend>RCR 计算 (重要)</legend>
@@ -205,38 +186,34 @@
             <option value="AC2end" selected>AC2end (默认)</option>
           </select>
         </label>
-        
         <!-- RCR 计算方法选择 -->
         <div style="margin-bottom:6px;">
           <span style="font-weight:bold;">RCR 计算方法:</span><br>
           <label style="display:block; margin-left:16px;">
             <input type="radio" name="rcrOption" id="rcrOptionNumerical" value="numerical" checked>
-            数值求解 (<span id="RCR_numerical_display"></span> mm)
+            数值求解 (<span id="RCR_numerical_display"></span>)
           </label>
           <label style="display:block; margin-left:16px;">
             <input type="radio" name="rcrOption" id="rcrOptionSimple" value="simple">
-            简单计算 (<span id="RCR_simple_display"></span> mm)
+            简单计算 (<span id="RCR_simple_display"></span>)
           </label>
         </div>
-
-        <!-- RCR 可手动修改 -->
+        <!-- RCR 手动修改 -->
         <label style="display:block;">
           RCR (最终使用):
           <input id="RCR" type="number" step="any" style="width:120px;">
         </label>
       </fieldset>
-
       <!-- 操作按钮 -->
       <div style="margin-top:10px;">
         <button id="calculateBtn" style="padding:6px 12px; margin-right:10px;">计算曲率参数</button>
         <button id="drawBtn" style="padding:6px 12px;">绘图</button>
       </div>
-
       <!-- 结果显示 -->
       <div id="results"></div>
     </div>
     
-    <!-- 右侧：绘图区域 -->
+    <!-- 右侧区域：绘图 -->
     <div id="right-panel">
       <div class="canvas-container">
         <canvas id="combinedPlot" width="500" height="320"></canvas>
@@ -248,8 +225,12 @@
   </div>
   
   <script>
+    // 固定常量：corneaAt0 和 SagBCAt0（不再作为输入）
+    const CORNEA_AT0 = 0.005;
+    const SAG_BC_AT0 = 0;
+
     /***************************************************************************************
-     * 数学函数模块（函数式编程风格）
+     * 数学函数模块
      ***************************************************************************************/
     const Z = (x, R, k) => {
       const term = 1 - (1 + k) * (x * x) / (R * R);
@@ -266,7 +247,6 @@
       const SagAtRCend  = Z(RCend, RCR, 0) - Z(BCend, RCR, 0) + SagAtBCend;
       const SagAtAC1end = Z(AC1end, AC1R, 0) - Z(RCend, AC1R, 0) + SagAtRCend;
       const SagAtAC2end = Z(AC2end, AC2R, 0) - Z(AC1end, AC2R, 0) + SagAtAC1end;
-      
       if (x >= 0 && x <= BCend) {
         return Z(x, BCR, 0) + SagBCAt0;
       } else if (x > BCend && x <= RCend) {
@@ -310,61 +290,45 @@
     };
 
     /***************************************************************************************
-     * 绘制刻度的辅助函数
-     * 参数:
-     *   ctx           : Canvas 2D 上下文
-     *   transformX    : x坐标变换函数
-     *   transformY    : y坐标变换函数
-     *   xMin, xMax    : x轴范围
-     *   yMin, yMax    : y轴范围
-     *   xTicks, yTicks: 刻度数量
-     *   decimals      : 显示小数位
+     * 辅助函数：绘制坐标轴刻度
      ***************************************************************************************/
     function drawAxisTicks(ctx, transformX, transformY, xMin, xMax, yMin, yMax, xTicks=5, yTicks=5, decimals=1) {
       ctx.save();
       ctx.strokeStyle = "#555";
       ctx.fillStyle   = "#333";
       ctx.font        = "12px sans-serif";
-
-      // X 方向刻度
+      // X轴刻度
       ctx.textAlign   = "center";
       for (let i = 0; i <= xTicks; i++) {
         const xVal = xMin + i * (xMax - xMin) / xTicks;
         const px   = transformX(xVal);
-        const py   = transformY(yMin);  // 在底部绘制刻度
-        // 刻度线
+        const py   = transformY(yMin);
         ctx.beginPath();
         ctx.moveTo(px, py);
         ctx.lineTo(px, py + 5);
         ctx.stroke();
-        // 数值
         ctx.fillText(xVal.toFixed(decimals), px, py + 18);
       }
-
-      // Y 方向刻度
+      // Y轴刻度
       ctx.textAlign = "right";
       for (let j = 0; j <= yTicks; j++) {
         const yVal = yMin + j * (yMax - yMin) / yTicks;
         const py   = transformY(yVal);
-        const px   = transformX(xMin);  // 在左侧绘制刻度
-        // 刻度线
+        const px   = transformX(xMin);
         ctx.beginPath();
         ctx.moveTo(px, py);
         ctx.lineTo(px - 5, py);
         ctx.stroke();
-        // 数值
         ctx.fillText(yVal.toFixed(decimals), px - 8, py + 4);
       }
       ctx.restore();
     }
 
     /***************************************************************************************
-     * 全局变量：存放 RCR 数值求解、简单计算两种结果
+     * 全局变量：存放 RCR 数值求解与简单计算结果
      ***************************************************************************************/
     let globalRCR_numerical = null;
-    let globalRCR_simple    = null;
-
-    // 切换单选按钮时，更新 RCR 文本框
+    let globalRCR_simple = null;
     function updateRCRField() {
       const isNumerical = document.getElementById("rcrOptionNumerical").checked;
       if (isNumerical && globalRCR_numerical !== null) {
@@ -385,10 +349,8 @@
       const BOD       = parseFloat(document.getElementById("BOD").value);
       const lensD     = parseFloat(document.getElementById("lensD").value);
       const edgeLift  = parseFloat(document.getElementById("edgeLift").value);
-      const corneaAt0 = parseFloat(document.getElementById("corneaAt0").value);
-      const SagBCAt0  = parseFloat(document.getElementById("SagBCAt0").value);
 
-      // 计算默认曲率半径
+      // 使用常量 CORNEA_AT0 和 SAG_BC_AT0
       const computedCorneaR = 337.5 / FlatK;
       const computedBCR     = 337.5 / (FlatK - TP - Jessen);
       const computedAC1R    = 337.5 / FlatK;
@@ -397,54 +359,44 @@
       // 止点位置
       const BCend  = BOD / 2;
       const RCend  = BOD / 2 + 0.7;
-      const AC1end = ((lensD / 2 - 0.5) - (BOD / 2 + 0.7)) / 2 + (BOD / 2 + 0.7);
-      const AC2end = lensD / 2 - 0.5;
-      const PCend  = lensD / 2;
+      const AC1end = ((lensD/2 - 0.5) - (BOD/2 + 0.7)) / 2 + (BOD/2 + 0.7);
+      const AC2end = lensD/2 - 0.5;
+      const PCend  = lensD/2;
 
       const params = {
         BCR: computedBCR,
         AC1R: computedAC1R,
         AC2R: computedAC2R,
         BCend, RCend, AC1end, AC2end, PCend,
-        SagBCAt0
+        SagBCAt0: SAG_BC_AT0
       };
 
-      // 等高点选择
       const equalChoice = document.getElementById("equalHeightPoint").value;
       let xEqual;
-      if (equalChoice === "RCend") {
-        xEqual = RCend;
-      } else if (equalChoice === "AC1end") {
-        xEqual = AC1end;
-      } else {
-        xEqual = AC2end;
-      }
+      if (equalChoice === "RCend")      { xEqual = RCend; }
+      else if (equalChoice === "AC1end") { xEqual = AC1end; }
+      else                              { xEqual = AC2end; }
 
-      // 数值求解 RCR
       let RCR_numerical;
       try {
-        const F = RCR => lensSag(xEqual, params, RCR, 0) - corneaSag(xEqual, computedCorneaR, ecc, corneaAt0);
+        const F = RCR => lensSag(xEqual, params, RCR, 0) - corneaSag(xEqual, computedCorneaR, ecc, CORNEA_AT0);
         RCR_numerical = findRootBisection(F, 2, 20);
       } catch (e) {
         alert("无法求解 RCR(数值): " + e.message);
         return;
       }
-
-      // 简单计算 RCR
       const RCR_simple = 337.5 / (FlatK + TP * 2);
 
-      // 求解 PCR (依赖 RCR_numerical)
       let PCR_value;
       try {
         const G = PCR => lensSag(PCend, params, RCR_numerical, PCR)
-                       - (corneaSag(PCend, computedCorneaR, ecc, corneaAt0) - edgeLift);
+                        - (corneaSag(PCend, computedCorneaR, ecc, CORNEA_AT0) - edgeLift);
         PCR_value = findRootBisection(G, 2, 20);
       } catch (e) {
         alert("无法求解 PCR: " + e.message);
         return;
       }
 
-      // 写回文本框
       document.getElementById("corneaR").value = computedCorneaR.toFixed(4);
       document.getElementById("BCR").value     = computedBCR.toFixed(4);
       document.getElementById("AC1R").value    = computedAC1R.toFixed(4);
@@ -455,11 +407,8 @@
       globalRCR_simple    = RCR_simple;
       updateRCRField();
 
-      // 显示 RCR 两种结果
       document.getElementById("RCR_numerical_display").textContent = RCR_numerical.toFixed(4);
       document.getElementById("RCR_simple_display").textContent    = RCR_simple.toFixed(4);
-
-      // 结果展示
       document.getElementById("results").innerHTML = `
         <h2>曲率参数与止点位置</h2>
         <p>曲率半径：</p>
@@ -485,92 +434,75 @@
     }
 
     /***************************************************************************************
-     * 绘图
+     * 绘图函数
      ***************************************************************************************/
     function drawPlots() {
-      // 从文本框读取曲率参数
       const corneaR_value = parseFloat(document.getElementById("corneaR").value);
       const BCR_value     = parseFloat(document.getElementById("BCR").value);
       const AC1R_value    = parseFloat(document.getElementById("AC1R").value);
       const AC2R_value    = parseFloat(document.getElementById("AC2R").value);
       const RCR_value     = parseFloat(document.getElementById("RCR").value);
       const PCR_value     = parseFloat(document.getElementById("PCR").value);
-
-      // 主输入
       const BOD       = parseFloat(document.getElementById("BOD").value);
       const lensD     = parseFloat(document.getElementById("lensD").value);
-      const SagBCAt0  = parseFloat(document.getElementById("SagBCAt0").value);
+      const edgeLift  = parseFloat(document.getElementById("edgeLift").value);
       const ecc       = parseFloat(document.getElementById("ecc").value);
-      const corneaAt0 = parseFloat(document.getElementById("corneaAt0").value);
 
       // 止点位置
       const BCend  = BOD / 2;
       const RCend  = BOD / 2 + 0.7;
-      const AC1end = ((lensD / 2 - 0.5) - (BOD / 2 + 0.7)) / 2 + (BOD / 2 + 0.7);
-      const AC2end = lensD / 2 - 0.5;
-      const PCend  = lensD / 2;
+      const AC1end = ((lensD/2 - 0.5) - (BOD/2 + 0.7)) / 2 + (BOD/2 + 0.7);
+      const AC2end = lensD/2 - 0.5;
+      const PCend  = lensD/2;
 
-      // lensSag 参数
       const params = {
         BCR: BCR_value,
         AC1R: AC1R_value,
         AC2R: AC2R_value,
         BCend, RCend, AC1end, AC2end, PCend,
-        SagBCAt0
+        SagBCAt0: SAG_BC_AT0
       };
 
-      // 采样 x
       const sampleCount = 200;
       const xValues = Array.from({ length: sampleCount + 1 }, (_, i) => i * PCend / sampleCount);
-
-      // 矢高计算
-      const corneaVals = xValues.map(x => corneaSag(x, corneaR_value, ecc, corneaAt0));
+      const corneaVals = xValues.map(x => corneaSag(x, corneaR_value, ecc, CORNEA_AT0));
       const lensVals   = xValues.map(x => lensSag(x, params, RCR_value, PCR_value));
       const allYs      = [...corneaVals, ...lensVals];
       const yMin       = Math.min(...allYs);
       const yMax       = Math.max(...allYs);
       const padding    = 40;
 
-      /* 绘制角膜与晶状体矢高图 */
+      /******** 绘制角膜与晶状体矢高图 ********/
       const canvasCombined = document.getElementById("combinedPlot");
       const ctxCombined    = canvasCombined.getContext("2d");
-      const plotWidth      = canvasCombined.width  - 2 * padding;
-      const plotHeight     = canvasCombined.height - 2 * padding;
-
-      // 坐标变换
+      const plotWidth  = canvasCombined.width - 2 * padding;
+      const plotHeight = canvasCombined.height - 2 * padding;
       const transformX = x => padding + (x / PCend) * plotWidth;
       const transformY = y => padding + plotHeight - ((y - yMin) / (yMax - yMin)) * plotHeight;
-
-      // 清除画布
       ctxCombined.clearRect(0, 0, canvasCombined.width, canvasCombined.height);
       ctxCombined.save();
 
-      // 坐标轴
+      // 绘制坐标轴
       ctxCombined.strokeStyle = "#000";
       ctxCombined.beginPath();
-      // x 轴
       ctxCombined.moveTo(padding, transformY(0));
       ctxCombined.lineTo(canvasCombined.width - padding, transformY(0));
-      // y 轴
       ctxCombined.moveTo(padding, padding);
       ctxCombined.lineTo(padding, canvasCombined.height - padding);
       ctxCombined.stroke();
-
-      // x / y 轴标签
+      // 绘制坐标轴标签
       ctxCombined.textAlign = "center";
-      ctxCombined.fillText("X (mm)", (canvasCombined.width + padding) / 2, canvasCombined.height - 6);
+      ctxCombined.fillText("X (mm)", (canvasCombined.width + padding)/2, canvasCombined.height - 6);
       ctxCombined.save();
-      ctxCombined.translate(10, canvasCombined.height / 2);
-      ctxCombined.rotate(-Math.PI / 2);
+      ctxCombined.translate(10, canvasCombined.height/2);
+      ctxCombined.rotate(-Math.PI/2);
       ctxCombined.textAlign = "center";
       ctxCombined.fillText("Y (mm)", 0, 0);
       ctxCombined.restore();
-
-      // 在此处绘制刻度
+      // 绘制刻度
       drawAxisTicks(ctxCombined, transformX, transformY, 0, PCend, yMin, yMax, 5, 5, 1);
-
-      // 角膜曲线：半透明黑色虚线
-      ctxCombined.setLineDash([5, 5]);
+      // 绘制角膜曲线：半透明黑色虚线
+      ctxCombined.setLineDash([5,5]);
       ctxCombined.strokeStyle = "rgba(0,0,0,0.5)";
       ctxCombined.beginPath();
       xValues.forEach((x, i) => {
@@ -581,8 +513,7 @@
       });
       ctxCombined.stroke();
       ctxCombined.setLineDash([]);
-
-      // 晶状体矢高曲线
+      // 绘制晶状体矢高，各段用不同颜色
       const segments = [
         { start: 0, end: BCend, color: "red" },
         { start: BCend, end: RCend, color: "green" },
@@ -602,79 +533,91 @@
         });
         ctxCombined.stroke();
       });
-
       ctxCombined.fillStyle = "#000";
       ctxCombined.font = "14px Arial";
-      ctxCombined.fillText("角膜与镜片矢高曲线", canvasCombined.width / 2, padding - 10);
+      ctxCombined.fillText("角膜与镜片矢高曲线", canvasCombined.width/2, padding - 10);
       ctxCombined.restore();
 
-      /* 绘制泪膜厚度图 */
-      const tearVals = xValues.map(x => tearSag(x, params, RCR_value, PCR_value, corneaR_value, ecc, corneaAt0));
-      const minTear  = Math.min(...tearVals);
-      const newTearVals = tearVals.map(v => v - minTear); // 归零
+      /******** 绘制泪膜厚度图 ********/
+      // 计算泪膜厚度，先计算各采样点值
+      const tearVals = xValues.map(x => tearSag(x, params, RCR_value, PCR_value, corneaR_value, ecc, CORNEA_AT0));
+      // 根据关键点（x=0, BCend, RCend, AC1end, AC2end）计算各自的泪液厚度
+      const criticalX = [0, BCend, RCend, AC1end, AC2end];
+      const criticalTearVals = criticalX.map(x => tearSag(x, params, RCR_value, PCR_value, corneaR_value, ecc, CORNEA_AT0));
+      const minTear = Math.min(...criticalTearVals);
+      
+      // 归零后转换成微米（1 mm = 1000 µm）
+      const newTearVals_mm = tearVals.map(v => v - minTear);
+      const newTearVals = newTearVals_mm.map(v => v * 1000);
       const yMinTear = Math.min(...newTearVals);
       const yMaxTear = Math.max(...newTearVals);
       const canvasTear = document.getElementById("tearPlot");
-      const ctxTear    = canvasTear.getContext("2d");
-      const plotWidthTear  = canvasTear.width  - 2 * padding;
+      const ctxTear = canvasTear.getContext("2d");
+      const plotWidthTear = canvasTear.width  - 2 * padding;
       const plotHeightTear = canvasTear.height - 2 * padding;
-
       const transformXTear = x => padding + (x / PCend) * plotWidthTear;
       const transformYTear = y => padding + plotHeightTear - ((y - yMinTear) / (yMaxTear - yMinTear)) * plotHeightTear;
-
+      
       ctxTear.clearRect(0, 0, canvasTear.width, canvasTear.height);
       ctxTear.save();
-
-      // 坐标轴
+      // 绘制坐标轴
       ctxTear.strokeStyle = "#000";
       ctxTear.beginPath();
-      // x 轴
       ctxTear.moveTo(padding, transformYTear(0));
       ctxTear.lineTo(canvasTear.width - padding, transformYTear(0));
-      // y 轴
       ctxTear.moveTo(padding, padding);
       ctxTear.lineTo(padding, canvasTear.height - padding);
       ctxTear.stroke();
-
-      // x / y 轴标签
+      // 坐标轴标签：X轴为 mm，Y轴为微米
       ctxTear.textAlign = "center";
-      ctxTear.fillText("X (mm)", (canvasTear.width + padding) / 2, canvasTear.height - 6);
+      ctxTear.fillText("X (mm)", (canvasTear.width + padding)/2, canvasTear.height - 6);
       ctxTear.save();
-      ctxTear.translate(10, canvasTear.height / 2);
-      ctxTear.rotate(-Math.PI / 2);
+      ctxTear.translate(10, canvasTear.height/2);
+      ctxTear.rotate(-Math.PI/2);
       ctxTear.textAlign = "center";
-      ctxTear.fillText("Tear (mm)", 0, 0);
+      ctxTear.fillText("Tear", 0, 0);
       ctxTear.restore();
-
       // 绘制刻度
       drawAxisTicks(ctxTear, transformXTear, transformYTear, 0, PCend, yMinTear, yMaxTear, 5, 5, 1);
-
-      // 泪膜厚度曲线（紫色）
+      // 绘制泪膜厚度曲线
       ctxTear.strokeStyle = "purple";
       ctxTear.beginPath();
-      xValues.forEach((xx, i) => {
-        const cx = transformXTear(xx);
+      xValues.forEach((x, i) => {
+        const cx = transformXTear(x);
         const cy = transformYTear(newTearVals[i]);
         if (i === 0) ctxTear.moveTo(cx, cy);
         else ctxTear.lineTo(cx, cy);
       });
       ctxTear.stroke();
-
+      // 标记关键点：x=0, BCend, RCend, AC1end, AC2end
+      const markPoints = [0, BCend, RCend, AC1end, AC2end];
+      ctxTear.fillStyle = "red";
+      markPoints.forEach(xVal => {
+        const tearVal = (tearSag(xVal, params, RCR_value, PCR_value, corneaR_value, ecc, CORNEA_AT0) - minTear) * 1000;
+        const cx = transformXTear(xVal);
+        const cy = transformYTear(tearVal);
+        ctxTear.beginPath();
+        ctxTear.arc(cx, cy, 3, 0, 2 * Math.PI);
+        ctxTear.fill();
+        ctxTear.fillStyle = "#000";
+        ctxTear.font = "12px Arial";
+        ctxTear.fillText(tearVal.toFixed(2), cx+20, cy - 8);
+        ctxTear.fillStyle = "red";
+      });
       ctxTear.fillStyle = "#000";
       ctxTear.font = "14px Arial";
-      ctxTear.fillText("泪膜厚度曲线 (归零)", canvasTear.width / 2, padding - 10);
-
+      ctxTear.fillText("泪膜厚度曲线 (归零)", canvasTear.width/2, padding - 10);
       ctxTear.restore();
     }
 
-    // 事件绑定
+    /***************************************************************************************
+     * 事件绑定
+     ***************************************************************************************/
     document.getElementById("calculateBtn").addEventListener("click", calculateParameters);
     document.getElementById("drawBtn").addEventListener("click", drawPlots);
     document.querySelectorAll('input[name="rcrOption"]').forEach(radio => {
       radio.addEventListener("change", updateRCRField);
     });
-
-    // 页面加载后先计算一次
     calculateParameters();
   </script>
 </body>
