@@ -221,6 +221,9 @@
       <div class="canvas-container">
         <canvas id="tearPlot" width="500" height="320"></canvas>
       </div>
+      <div class="canvas-container">
+        <canvas id="fluoresceinPlot" width="500" height="320"></canvas>
+      </div>
     </div>
   </div>
   
@@ -237,10 +240,8 @@
       const sqrtTerm = Math.sqrt(term >= 0 ? term : 0);
       return (1 / R) * (x * x) / (1 + sqrtTerm);
     };
-    const corneaSag = (x, corneaR, ecc, corneaAt0) => {
-      const conic = -Math.sign(ecc) * (ecc * ecc);
-      return Z(x, corneaR, conic) + corneaAt0;
-    };
+    const corneaSag = (x, corneaR, ecc, corneaAt0) =>
+      Z(x, corneaR, -Math.sign(ecc) * (ecc * ecc)) + corneaAt0;
     const lensSag = (x, p, RCR, PCR) => {
       const { BCR, AC1R, AC2R, BCend, RCend, AC1end, AC2end, PCend, SagBCAt0 } = p;
       const SagAtBCend  = Z(BCend, BCR, 0) + SagBCAt0;
@@ -292,7 +293,7 @@
     /***************************************************************************************
      * 辅助函数：绘制坐标轴刻度
      ***************************************************************************************/
-    function drawAxisTicks(ctx, transformX, transformY, xMin, xMax, yMin, yMax, xTicks=5, yTicks=5, decimals=1) {
+    const drawAxisTicks = (ctx, transformX, transformY, xMin, xMax, yMin, yMax, xTicks=5, yTicks=5, decimals=1) => {
       ctx.save();
       ctx.strokeStyle = "#555";
       ctx.fillStyle   = "#333";
@@ -322,26 +323,26 @@
         ctx.fillText(yVal.toFixed(decimals), px - 8, py + 4);
       }
       ctx.restore();
-    }
+    };
 
     /***************************************************************************************
      * 全局变量：存放 RCR 数值求解与简单计算结果
      ***************************************************************************************/
     let globalRCR_numerical = null;
     let globalRCR_simple = null;
-    function updateRCRField() {
+    const updateRCRField = () => {
       const isNumerical = document.getElementById("rcrOptionNumerical").checked;
       if (isNumerical && globalRCR_numerical !== null) {
         document.getElementById("RCR").value = globalRCR_numerical.toFixed(4);
       } else if (!isNumerical && globalRCR_simple !== null) {
         document.getElementById("RCR").value = globalRCR_simple.toFixed(4);
       }
-    }
+    };
 
     /***************************************************************************************
      * 计算曲率参数
      ***************************************************************************************/
-    function calculateParameters() {
+    const calculateParameters = () => {
       const FlatK     = parseFloat(document.getElementById("FlatK").value);
       const ecc       = parseFloat(document.getElementById("ecc").value);
       const TP        = parseFloat(document.getElementById("TP").value);
@@ -431,12 +432,13 @@
         </ul>
         <p>当前等高点: ${equalChoice}，请选择 RCR 计算方式后点击“绘图”。</p>
       `;
-    }
+    };
 
     /***************************************************************************************
-     * 绘图函数
+     * 绘图函数（包含角膜/晶状体曲线、泪膜厚度曲线及新增泪液荧光素图）
      ***************************************************************************************/
-    function drawPlots() {
+    const drawPlots = () => {
+      // 读入参数
       const corneaR_value = parseFloat(document.getElementById("corneaR").value);
       const BCR_value     = parseFloat(document.getElementById("BCR").value);
       const AC1R_value    = parseFloat(document.getElementById("AC1R").value);
@@ -463,6 +465,7 @@
         SagBCAt0: SAG_BC_AT0
       };
 
+      // 采样点与泪膜矢高数据
       const sampleCount = 200;
       const xValues = Array.from({ length: sampleCount + 1 }, (_, i) => i * PCend / sampleCount);
       const corneaVals = xValues.map(x => corneaSag(x, corneaR_value, ecc, CORNEA_AT0));
@@ -490,7 +493,7 @@
       ctxCombined.moveTo(padding, padding);
       ctxCombined.lineTo(padding, canvasCombined.height - padding);
       ctxCombined.stroke();
-      // 绘制坐标轴标签
+      // 坐标轴标签
       ctxCombined.textAlign = "center";
       ctxCombined.fillText("X (mm)", (canvasCombined.width + padding)/2, canvasCombined.height - 6);
       ctxCombined.save();
@@ -538,15 +541,13 @@
       ctxCombined.fillText("角膜与镜片矢高曲线", canvasCombined.width/2, padding - 10);
       ctxCombined.restore();
 
-      /******** 绘制泪膜厚度图 ********/
-      // 计算泪膜厚度，先计算各采样点值
+      /******** 绘制泪膜厚度曲线 ********/
       const tearVals = xValues.map(x => tearSag(x, params, RCR_value, PCR_value, corneaR_value, ecc, CORNEA_AT0));
-      // 根据关键点（x=0, BCend, RCend, AC1end, AC2end）计算各自的泪液厚度
+      // 选择关键点计算归零参考值
       const criticalX = [0, BCend, RCend, AC1end, AC2end];
       const criticalTearVals = criticalX.map(x => tearSag(x, params, RCR_value, PCR_value, corneaR_value, ecc, CORNEA_AT0));
       const minTear = Math.min(...criticalTearVals);
-      
-      // 归零后转换成微米（1 mm = 1000 µm）
+      // 归零并转换成微米（1 mm = 1000 µm）
       const newTearVals_mm = tearVals.map(v => v - minTear);
       const newTearVals = newTearVals_mm.map(v => v * 1000);
       const yMinTear = Math.min(...newTearVals);
@@ -568,14 +569,14 @@
       ctxTear.moveTo(padding, padding);
       ctxTear.lineTo(padding, canvasTear.height - padding);
       ctxTear.stroke();
-      // 坐标轴标签：X轴为 mm，Y轴为微米
+      // 坐标轴标签
       ctxTear.textAlign = "center";
       ctxTear.fillText("X (mm)", (canvasTear.width + padding)/2, canvasTear.height - 6);
       ctxTear.save();
       ctxTear.translate(10, canvasTear.height/2);
       ctxTear.rotate(-Math.PI/2);
       ctxTear.textAlign = "center";
-      ctxTear.fillText("Tear", 0, 0);
+      ctxTear.fillText("Tear (µm)", 0, 0);
       ctxTear.restore();
       // 绘制刻度
       drawAxisTicks(ctxTear, transformXTear, transformYTear, 0, PCend, yMinTear, yMaxTear, 5, 5, 1);
@@ -589,7 +590,7 @@
         else ctxTear.lineTo(cx, cy);
       });
       ctxTear.stroke();
-      // 标记关键点：x=0, BCend, RCend, AC1end, AC2end
+      // 标记关键点
       const markPoints = [0, BCend, RCend, AC1end, AC2end];
       ctxTear.fillStyle = "red";
       markPoints.forEach(xVal => {
@@ -608,16 +609,99 @@
       ctxTear.font = "14px Arial";
       ctxTear.fillText("泪膜厚度曲线 (归零)", canvasTear.width/2, padding - 10);
       ctxTear.restore();
-    }
+
+      /***********************************************************************************
+       * 新增功能：生成泪液荧光素图
+       * 思路：将x轴上测得的泪膜厚度通过插值函数映射到极坐标,
+       *       对于每个像素计算从图像中心对应的物理距离（mm），
+       *       若在有效区间内，则根据值在 [0,100] µm（0.1 mm）之间作从黑到纯绿色的伪彩色映射，
+       *       否则填充白色背景。
+       ***********************************************************************************/
+      // 定义基于预采样数据的线性插值函数，参数 x (单位 mm)
+      const getTearThicknessInterp = x => {
+        const ratio = x / PCend;
+        const idx = ratio * sampleCount;
+        const i = Math.floor(idx);
+        const fraction = idx - i;
+        if (i >= newTearVals.length - 1) return newTearVals[newTearVals.length - 1];
+        return newTearVals[i] * (1 - fraction) + newTearVals[i + 1] * fraction;
+      };
+
+      // 绘制泪液荧光素图
+      drawFluoresceinPlot(PCend, getTearThicknessInterp);
+    };
+
+    /***************************************************************************************
+     * 新增函数：绘制泪液荧光素图
+     * 参数说明：
+     *    PCend：表示x轴最大长度（单位 mm）
+     *    getTearThickness：给定 x (mm) 返回泪膜厚度 (µm)，线性插值函数
+     ***************************************************************************************/
+    const drawFluoresceinPlot = (PCend, getTearThickness) => {
+      const canvas = document.getElementById("fluoresceinPlot");
+      const ctx = canvas.getContext("2d");
+      const padding = 40;
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      // 填充背景为白色
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      // 计算图像中心及物理尺寸映射
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const plotDiameter = Math.min(width, height) - 2 * padding;
+      const plotRadius = plotDiameter / 2;
+      const scale = plotRadius / PCend; // mm -> 像素转换因子
+
+      // 创建 ImageData 对象，逐像素填充伪彩色数据
+      const imageData = ctx.createImageData(width, height);
+      const data = imageData.data;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const rPixels = Math.sqrt(dx * dx + dy * dy);
+          // 将像素距离转换为物理距离，单位 mm
+          const r_mm = rPixels / scale;
+          let color;
+          if (r_mm <= PCend) {
+            let T = getTearThickness(r_mm);
+            // 将泪膜厚度（µm）限定在0～100范围内
+            T = Math.min(Math.max(T, 0), 100);
+            const greenIntensity = Math.round((T / 100) * 255);
+            color = [0, greenIntensity, 0, 255];
+          } else {
+            // 超出有效区域，填充背景白色
+            color = [255, 255, 255, 255];
+          }
+          const idx = (y * width + x) * 4;
+          data[idx] = color[0];
+          data[idx + 1] = color[1];
+          data[idx + 2] = color[2];
+          data[idx + 3] = color[3];
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      // 绘制图标题
+      ctx.fillStyle = "#000";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("泪液荧光素图", width / 2, padding - 10);
+    };
 
     /***************************************************************************************
      * 事件绑定
      ***************************************************************************************/
     document.getElementById("calculateBtn").addEventListener("click", calculateParameters);
-    document.getElementById("drawBtn").addEventListener("click", drawPlots);
+    document.getElementById("drawBtn").addEventListener("click", () => {
+      calculateParameters();
+      drawPlots();
+    });
     document.querySelectorAll('input[name="rcrOption"]').forEach(radio => {
       radio.addEventListener("change", updateRCRField);
     });
+    // 初始化时先计算参数
     calculateParameters();
   </script>
 </body>
