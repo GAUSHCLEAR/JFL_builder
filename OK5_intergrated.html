@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gaush OK5 综合实验室 v14</title> <!-- Version Updated -->
+  <title>Gaush OK5 综合实验室 v15</title> <!-- Version Updated -->
   <!-- math.js for formula parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.2.1/math.min.js" integrity="sha512-VtnWaMtJXqcmxwDizzsWJOnZdX3Jaf9qlFWXEN4nL1KaoQzyNC+1f8lHFD6qd38cyfMgUeucF+pJCTc2p2SsVw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-  <h1>Gaush OK5 综合实验室 v14</h1> <!-- Version Updated -->
+  <h1>Gaush OK5 综合实验室 v15</h1> <!-- Version Updated -->
   <div id="container">
     <div id="left">
       <!-- 基础输入 -->
@@ -240,7 +240,7 @@
   }
 
   /* ---------- 绘图辅助函数 ---------- */
-  function drawAxes(ctx, w, h, pad, xMin, xMax, yMin, yMax, xUnit, yUnit, yIsMicrons = false) {
+  function drawAxes(ctx, w, h, pad, xMin, xMax, yMin, yMax, xUnit, yUnit, yIsMicrons = false, yAxisInverted = false) { // Added yAxisInverted parameter
     ctx.save();
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 1;
@@ -257,12 +257,23 @@
 
     const numYTicks = 5;
     for (let i = 0; i <= numYTicks; i++) {
-        const yVal = yMin + (yMax - yMin) * (i / numYTicks);
-        const yPos = pad + h - (h * (i / numYTicks)); // Invert y-axis for canvas
+        let yVal, yPos;
+
+        if (yAxisInverted) {
+            // Inverted Axis Labels: Top (i=0) corresponds to yMin, Bottom (i=numYTicks) to yMax
+            yVal = yMin + (yMax - yMin) * (i / numYTicks); // Value increases downwards
+            yPos = pad + (h * (i / numYTicks));           // Canvas position increases downwards
+        } else {
+            // Standard Axis Labels: Bottom (i=0) corresponds to yMin, Top (i=numYTicks) to yMax
+            yVal = yMin + (yMax - yMin) * (i / numYTicks); // Value increases upwards
+            yPos = pad + h - (h * (i / numYTicks));       // Canvas position decreases downwards (standard)
+        }
+
         ctx.moveTo(pad - 5, yPos);
         ctx.lineTo(pad, yPos);
         ctx.stroke();
-        const label = yIsMicrons ? Math.round(yVal) : yVal.toFixed(yMax < 0.1 ? 4 : 3); // Integer for microns
+        // Always round if yIsMicrons is true
+        const label = yIsMicrons ? Math.round(yVal) : yVal.toFixed(3);
         ctx.fillText(label, pad - 20, yPos);
     }
 
@@ -343,19 +354,22 @@
     ctxS.clearRect(0,0,sagCv.width,sagCv.height);
     const pad=40, w=sagCv.width-2*pad, h=sagCv.height-2*pad;
 
-    // Determine Y range based only on valid points
+    // Determine Y range based only on valid points (in mm)
     const yMin=Math.min(...validCorneaY,...validLensY), yMax=Math.max(...validCorneaY,...validLensY);
     const yRange = yMax - yMin;
-    const effectiveYMin = yMin - yRange * 0.05; // Add 5% padding
+    // Calculate effective range in mm
+    const effectiveYMin = yMin - yRange * 0.05;
     const effectiveYMax = yMax + yRange * 0.05;
 
-    // Draw Axes (New Function)
-    drawAxes(ctxS, w, h, pad, 0, PCend, effectiveYMin, effectiveYMax, "mm", "mm", true);
+    // Draw Axes - Pass range converted to µm. Axis labels increase upwards.
+    drawAxes(ctxS, w, h, pad, 0, PCend, effectiveYMin * 1000, effectiveYMax * 1000, "mm", "µm", true, true); // Added yAxisInverted: true
 
+    // Transform functions
     const tx=x=>pad+(x/PCend)*w;
-    const ty=y=>pad+h-((y - effectiveYMin)/(effectiveYMax-effectiveYMin))*h; // Use effective range & invert Y
+    // ty: maps sag value (mm) to canvas y-coordinate. Larger sag -> larger y (downwards).
+    const ty=y=>pad + ((y - effectiveYMin)/(effectiveYMax - effectiveYMin))*h;
 
-    // Draw Cornea (dashed gray)
+    // Draw Cornea (dashed gray) - Use the new ty transform
     ctxS.save();
     ctxS.setLineDash([4,4]);ctxS.strokeStyle="rgba(0,0,0,.5)";ctxS.lineWidth=1;
     ctxS.beginPath();
@@ -363,7 +377,7 @@
     ctxS.stroke();
     ctxS.restore();
 
-    // Draw Lens segments with color
+    // Draw Lens segments with color - Use the new ty transform
     const seg=[[0,BCend,"red"],[BCend,RCend,"green"],[RCend,AC1end,"blue"],[AC1end,AC2end,"red"],[AC2end,PCend,"green"]];
     ctxS.lineWidth=1.5;
     seg.forEach(([s,e,col])=>{
@@ -372,9 +386,10 @@
       let started = false;
       validIndices.forEach(i => {
           const x = xVals[i];
-          if (x >= s && x <= e) {
+          const y = validLensY[validIndices.indexOf(i)]; // Get corresponding y value
+          if (x >= s && x <= e && !isNaN(y)) {
               const X = tx(x);
-              const Y = ty(validLensY[validIndices.indexOf(i)]); // Use index within validLensY
+              const Y = ty(y); // Apply sag plot transform
               if (!started) {
                   ctxS.moveTo(X, Y);
                   started = true;
@@ -383,19 +398,20 @@
               }
           }
       });
-      if (started) ctxS.stroke(); // Only stroke if points were added
+      if (started) ctxS.stroke();
     });
 
-    // Mark key points on lens + Annotation (integer µm)
-    const marks=[0,BCend,RCend,AC1end,AC2end,PCend].filter(x => x <= PCend); // Ensure marks are within range
+    // Mark key points on lens + Annotation (integer µm) - Use the new ty transform
+    const marks=[0,BCend,RCend,AC1end,AC2end,PCend].filter(x => x <= PCend);
     ctxS.fillStyle="blue"; ctxS.font="10px sans-serif"; ctxS.textAlign = "left"; ctxS.textBaseline = "bottom";
     marks.forEach(x=>{
       const y=lensSag(x,p,RCR,PCR);
-      if (isNaN(y)) return; // Skip if sag is invalid at mark
-      const X=tx(x),Y=ty(y);
+      if (isNaN(y)) return;
+      const X=tx(x),Y=ty(y); // Apply sag plot transform
       ctxS.beginPath();ctxS.arc(X,Y,3,0,2*Math.PI);ctxS.fill();
       const label = Math.round(y*1000); // Convert to µm and round
-      ctxS.fillText(label,X+5,Y-5);
+      // Adjust text position slightly based on inverted Y
+      ctxS.fillText(label,X+5,Y+10); // Place text below the point
     });
 
     /* ---- 泪膜厚度 ---- */
@@ -406,58 +422,74 @@
         return (isNaN(lSag) || isNaN(cSag)) ? Infinity : cSag - lSag; // Handle potential NaNs
     }).filter(isFinite)); // Find minimum finite difference at marks
 
-    const tearUM=tearVals.map(v=>(v-zero)*1000).filter(t => !isNaN(t) && isFinite(t)); // Convert to µm, normalize, filter invalid
+    // Calculate tear thickness in µm, normalize, filter invalid
+    const tearUM_raw = validIndices.map(i => (tearVals[i] - zero) * 1000);
+    const validTearIndices = tearUM_raw.map((t, i) => (!isNaN(t) && isFinite(t)) ? validIndices[i] : -1).filter(i => i !== -1);
+    const validTearXVals = validTearIndices.map(i => xVals[i]);
+    const validTearUM = validTearIndices.map(i => tearUM_raw[validIndices.indexOf(i)]);
+
 
     const tearCv=$("tearPlot"),ctxT=tearCv.getContext('2d');
     ctxT.clearRect(0,0,tearCv.width,tearCv.height);
 
-    const yTMin=0; // Minimum thickness is always 0 after normalization
-    const yTMax= tearUM.length > 0 ? Math.max(...tearUM) : 100; // Default max if no valid points
-    const effectiveYTMax = yTMax * 1.1; // Add 10% headroom
+    const yTMin=0; // Minimum thickness is always 0 after normalization (in µm)
+    const yTMax= validTearUM.length > 0 ? Math.max(...validTearUM) : 100; // Default max if no valid points (in µm)
+    const effectiveYTMax = yTMax * 1.1; // Add 10% headroom (in µm)
 
-    // Draw Axes (New Function) - Y axis in µm
+    // Draw Axes - Standard Y axis (upwards positive labels), µm units, integer labels
     drawAxes(ctxT, w, h, pad, 0, PCend, yTMin, effectiveYTMax, "mm", "µm", true);
 
+    // Transform functions for tear plot
     const ttX=tx; // Reuse x-transform from sag plot
-    const ttY=y=>pad+h-((y-yTMin)/(effectiveYTMax-yTMin))*h; // Y transform for tear plot
+    // ttY: maps tear thickness (µm) to canvas y-coordinate. Standard canvas: larger value -> smaller y (upwards).
+    const ttY=y=>pad + h - ((y - yTMin)/(effectiveYTMax - yTMin))*h;
 
-    // Draw Tear Thickness Curve (Green) and Fill
+    // Draw Tear Thickness Curve (Green) and Fill - Use standard ttY transform
     ctxT.lineWidth=1.5;
-    ctxT.strokeStyle="green"; // Changed from purple to green per note
-    ctxT.fillStyle = 'rgba(0, 255, 0, 0.2)'; // Light green fill
+    ctxT.strokeStyle="green";
+    ctxT.fillStyle = 'rgba(0, 255, 0, 0.2)';
     ctxT.beginPath();
-    validXVals.forEach((x,i)=>{
-        const currentTear = (tearVals[i] - zero) * 1000;
-        if(isNaN(currentTear) || !isFinite(currentTear)) return; // Skip invalid points
-        const X=ttX(x);
-        const Y=ttY(currentTear);
-        if(i===0 || isNaN(tearVals[i-1])) ctxT.moveTo(X,Y); // Start new segment if first valid point or previous was NaN
-        else ctxT.lineTo(X,Y);
+    let tearStarted = false;
+    validTearIndices.forEach((originalIndex, i) => {
+        const x = xVals[originalIndex];
+        const currentTear = validTearUM[i]; // Already in µm
+        const X = ttX(x);
+        const Y = ttY(currentTear); // Apply tear plot transform
+        if (!tearStarted) {
+            // Move to the first valid point, considering the standard Y axis
+            ctxT.moveTo(X, Y);
+            tearStarted = true;
+        } else {
+            ctxT.lineTo(X, Y);
+        }
     });
 
-    // Complete the path for filling
-    const lastValidX = validXVals.length > 0 ? ttX(validXVals[validXVals.length - 1]) : pad;
-    const firstValidX = validXVals.length > 0 ? ttX(validXVals[0]) : pad;
-    ctxT.lineTo(lastValidX, ttY(0)); // Line to bottom at last x
-    ctxT.lineTo(firstValidX, ttY(0)); // Line to bottom at first x
-    ctxT.closePath();
 
-    ctxT.fill(); // Fill the area
-    ctxT.stroke(); // Draw the curve outline
+    // Complete the path for filling only if points were drawn
+    if (tearStarted) {
+        const lastValidX = ttX(validTearXVals[validTearXVals.length - 1]);
+        const firstValidX = ttX(validTearXVals[0]);
+        // Go to bottom-right, then bottom-left, then close path at the start point's Y=0 position
+        ctxT.lineTo(lastValidX, ttY(0)); // Line to bottom at last x
+        ctxT.lineTo(firstValidX, ttY(0)); // Line to bottom at first x
+        ctxT.closePath(); // Close path back to the start
+        ctxT.fill();
+        ctxT.stroke(); // Draw the outline after filling
+    }
 
 
-    // Mark key points + Annotation (integer µm)
+    // Mark key points + Annotation (integer µm) - Use standard ttY transform
     ctxT.fillStyle="red"; ctxT.font="10px sans-serif"; ctxT.textAlign = "left"; ctxT.textBaseline = "bottom";
     marks.forEach(x=>{
       const lSag = lensSag(x,p,RCR,PCR);
       const cSag = corneaSag(x,corneaR,ecc,CORNEA_AT0);
-      if (isNaN(lSag) || isNaN(cSag)) return; // Skip if sag invalid
+      if (isNaN(lSag) || isNaN(cSag) || !isFinite(zero)) return;
       const t=(cSag-lSag-zero)*1000;
-      if (isNaN(t) || !isFinite(t)) return; // Skip invalid thickness
-      const X=ttX(x),Y=ttY(t);
+      if (isNaN(t) || !isFinite(t)) return;
+      const X=ttX(x),Y=ttY(t); // Apply tear plot transform
       ctxT.beginPath();ctxT.arc(X,Y,3,0,2*Math.PI);ctxT.fill();
-      const label = Math.round(t); // Round to integer µm
-      ctxT.fillText(label,X+5,Y-5);
+      const label = Math.round(t);
+      ctxT.fillText(label,X+5,Y-5); // Standard text position above point
     });
 
 
