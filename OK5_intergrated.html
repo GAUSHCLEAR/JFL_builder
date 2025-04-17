@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gaush OK5 综合实验室 v13</title>
+  <title>Gaush OK5 综合实验室 v14</title> <!-- Version Updated -->
   <!-- math.js for formula parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.2.1/math.min.js" integrity="sha512-VtnWaMtJXqcmxwDizzsWJOnZdX3Jaf9qlFWXEN4nL1KaoQzyNC+1f8lHFD6qd38cyfMgUeucF+pJCTc2p2SsVw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-  <h1>Gaush OK5 综合实验室 v13</h1>
+  <h1>Gaush OK5 综合实验室 v14</h1> <!-- Version Updated -->
   <div id="container">
     <div id="left">
       <!-- 基础输入 -->
@@ -35,7 +35,7 @@
         <label>Jessen<input id="Jessen" type="number" step="0.25" value="0.75"></label>
         <label>BOD<input id="BOD" type="number" step="0.1" value="6"></label>
         <label>lensD<input id="lensD" type="number" step="0.1" value="10.6"></label>
-        <label>RCwidth<input id="RCwidth" type="number" step="0.1" value="0.7"></label>
+        <label>RCwidth<input id="RCwidth" type="number" step="0.1" value="0.7"></label> <!-- RCwidth already present -->
         <label>edgeLift<input id="edgeLift" type="number" step="0.01" value="0.1"></label>
       </div>
       <!-- 曲率公式 -->
@@ -43,8 +43,8 @@
         <legend>曲率公式 (可编辑)</legend>
         <div class="grid">
           <label>BC<input id="bc_formula" type="text" value="FlatK-TP-Jessen"></label>
-          <label>AC1<input id="ac1_formula" type="text" value="FlatK"></label>
-          <label>AC2<input id="ac2_formula" type="text" value="337.5/(337.5/FlatK+0.2)"></label>
+          <label>AC1<input id="ac1_formula" type="text" value="FlatK - 2 * ecc"></label> <!-- Formula Updated per note -->
+          <label>AC2<input id="ac2_formula" type="text" value="FlatK - 3 * ecc"></label> <!-- Formula Updated per note -->
           <label>RC<input id="rc_formula" type="text" value="FlatK+1.5*TP"></label>
           <label>PC<input id="pc_formula" type="text" value="FlatK-20*ecc"></label>
         </div>
@@ -143,7 +143,7 @@
     if(x<=AC1end) return Z(x,AC1R,0)-Z(RCend,AC1R,0)+SagAtRC;
     if(x<=AC2end) return Z(x,AC2R,0)-Z(AC1end,AC2R,0)+SagAtAC1;
     if(x<=PCend) return Z(x,PCR,0)-Z(AC2end,PCR,0)+SagAtAC2;
-    return NaN;
+    return NaN; // Return NaN if x is outside the defined lens range
   };
   const tearSag=(x,p,RCR,PCR,corneaR,e)=>corneaSag(x,corneaR,e,CORNEA_AT0)-lensSag(x,p,RCR,PCR);
 
@@ -183,8 +183,14 @@
       radii.AC1R.dataset.backend=toRadius(Kvals.ac1_formula);
       let ac2=toRadius(Kvals.ac2_formula);
       if($("lockAC2R").checked){
-        if(ac2rDelta===null) ac2rDelta=ac2-parseFloat(radii.AC1R.dataset.backend);
-        ac2=parseFloat(radii.AC1R.dataset.backend)+ac2rDelta;
+        if(ac2rDelta===null && !isNaN(parseFloat(radii.AC1R.dataset.backend)) && !isNaN(ac2)) {
+            ac2rDelta=ac2-parseFloat(radii.AC1R.dataset.backend);
+        }
+        if(ac2rDelta !== null && !isNaN(parseFloat(radii.AC1R.dataset.backend))) {
+             ac2=parseFloat(radii.AC1R.dataset.backend)+ac2rDelta;
+        }
+      } else {
+        ac2rDelta = null; // Reset delta if lock is unchecked
       }
       radii.AC2R.dataset.backend=ac2;
       radii.RCR.dataset.backend=toRadius(Kvals.rc_formula);
@@ -214,14 +220,71 @@
     radiusIds.forEach(id=>{
       const elem=radii[id];
       const val=parseFloat(elem.dataset.backend)||0;
-      if(displayMode==="radius"){elem.step="0.05";elem.value=val.toFixed(4);}else{elem.step="0.25";elem.value=toCurvature(val).toFixed(2);}  });
+      if (isNaN(val) || val === 0) { // Handle invalid/zero radius
+          elem.value = "N/A";
+      } else if(displayMode==="radius"){
+          elem.step="0.05";
+          elem.value=val.toFixed(4);
+      } else { // curvature
+          elem.step="0.25";
+          elem.value=toCurvature(val).toFixed(2);
+      }
+    });
   }
   function updateSegUI(){
     segIds.forEach(id=>{
       const elem=segs[id];
-      elem.value=(parseFloat(elem.dataset.backend)||0).toFixed(3);
+      const val = parseFloat(elem.dataset.backend);
+      elem.value = isNaN(val) ? "N/A" : val.toFixed(3);
     });
   }
+
+  /* ---------- 绘图辅助函数 ---------- */
+  function drawAxes(ctx, w, h, pad, xMin, xMax, yMin, yMax, xUnit, yUnit, yIsMicrons = false) {
+    ctx.save();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1;
+    ctx.font = "10px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Y Axis (Vertical)
+    ctx.beginPath();
+    ctx.moveTo(pad, pad);
+    ctx.lineTo(pad, h + pad);
+    ctx.stroke();
+    ctx.fillText(yUnit, pad, pad - 15); // Y-axis unit label
+
+    const numYTicks = 5;
+    for (let i = 0; i <= numYTicks; i++) {
+        const yVal = yMin + (yMax - yMin) * (i / numYTicks);
+        const yPos = pad + h - (h * (i / numYTicks)); // Invert y-axis for canvas
+        ctx.moveTo(pad - 5, yPos);
+        ctx.lineTo(pad, yPos);
+        ctx.stroke();
+        const label = yIsMicrons ? Math.round(yVal) : yVal.toFixed(yMax < 0.1 ? 4 : 3); // Integer for microns
+        ctx.fillText(label, pad - 20, yPos);
+    }
+
+    // X Axis (Horizontal)
+    ctx.beginPath();
+    ctx.moveTo(pad, h + pad);
+    ctx.lineTo(w + pad, h + pad);
+    ctx.stroke();
+    ctx.fillText(xUnit, w + pad + 15, h + pad); // X-axis unit label
+
+    const numXTicks = 5;
+    for (let i = 0; i <= numXTicks; i++) {
+        const xVal = xMin + (xMax - xMin) * (i / numXTicks);
+        const xPos = pad + (w * (i / numXTicks));
+        ctx.moveTo(xPos, h + pad);
+        ctx.lineTo(xPos, h + pad + 5);
+        ctx.stroke();
+        ctx.fillText(xVal.toFixed(2), xPos, h + pad + 15);
+    }
+    ctx.restore();
+  }
+
 
   /* ---------- 绘图 ---------- */
   function drawPlots(param){
@@ -236,77 +299,270 @@
       AC1R:parseFloat(radii.AC1R.dataset.backend),
       AC2R:parseFloat(radii.AC2R.dataset.backend),
       BCend,RCend,AC1end,AC2end,PCend,
-      SagBCAt0:0
+      SagBCAt0:0 // Assuming lens starts at Z=0 at x=0
     };
     const RCR=parseFloat(radii.RCR.dataset.backend),
           PCR=parseFloat(radii.PCR.dataset.backend),
           corneaR=toRadius(param.FlatK);
 
+    // Basic validation
+    if (isNaN(PCend) || PCend <= 0 || isNaN(corneaR) || corneaR <=0 || isNaN(p.BCR) || p.BCR <= 0) {
+        console.warn("Invalid parameters for plotting.", {PCend, corneaR, BCR: p.BCR});
+        // Clear canvases or show error message? For now, just return.
+        ["sagPlot", "tearPlot", "fluoresceinPlot"].forEach(id => {
+            const cv = $(id);
+            const ctx = cv.getContext('2d');
+            ctx.clearRect(0, 0, cv.width, cv.height);
+            ctx.fillStyle = 'gray';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Invalid Input Data', cv.width / 2, cv.height / 2);
+        });
+        return;
+    }
+
+
     const sample=220,xVals=Array.from({length:sample+1},(_,i)=>i*PCend/sample);
     const corneaY=xVals.map(x=>corneaSag(x,corneaR,ecc,CORNEA_AT0));
     const lensY=xVals.map(x=>lensSag(x,p,RCR,PCR));
 
+    // Filter out NaN lens sag values which can occur if radii are invalid
+    const validIndices = lensY.map((y, i) => !isNaN(y) ? i : -1).filter(i => i !== -1);
+    if (validIndices.length === 0) {
+        console.warn("No valid lens sag points calculated.");
+        // Optionally clear canvases or show error
+        return;
+    }
+    const validXVals = validIndices.map(i => xVals[i]);
+    const validCorneaY = validIndices.map(i => corneaY[i]);
+    const validLensY = validIndices.map(i => lensY[i]);
+
+
     /* ---- 绘矢高图 ---- */
-    const sagCv=$("sagPlot"),ctxS=sagCv.getContext('2d');ctxS.clearRect(0,0,sagCv.width,sagCv.height);
-    const pad=40,w=sagCv.width-2*pad,h=sagCv.height-2*pad;
-    const yMin=Math.min(...corneaY,...lensY),yMax=Math.max(...corneaY,...lensY);
-    const tx=x=>pad+(x/PCend)*w,ty=y=>pad+((y - yMin)/(yMax-yMin))*h;
-    ctxS.strokeStyle="#000";ctxS.beginPath();ctxS.moveTo(pad,ty(0));ctxS.lineTo(sagCv.width-pad,ty(0));ctxS.moveTo(pad,pad);ctxS.lineTo(pad,sagCv.height-pad);ctxS.stroke();
-    ctxS.setLineDash([4,4]);ctxS.strokeStyle="rgba(0,0,0,.5)";ctxS.beginPath();xVals.forEach((x,i)=>{const X=tx(x),Y=ty(corneaY[i]);if(i)ctxS.lineTo(X,Y);else ctxS.moveTo(X,Y);});ctxS.stroke();ctxS.setLineDash([]);
+    const sagCv=$("sagPlot"),ctxS=sagCv.getContext('2d');
+    ctxS.clearRect(0,0,sagCv.width,sagCv.height);
+    const pad=40, w=sagCv.width-2*pad, h=sagCv.height-2*pad;
+
+    // Determine Y range based only on valid points
+    const yMin=Math.min(...validCorneaY,...validLensY), yMax=Math.max(...validCorneaY,...validLensY);
+    const yRange = yMax - yMin;
+    const effectiveYMin = yMin - yRange * 0.05; // Add 5% padding
+    const effectiveYMax = yMax + yRange * 0.05;
+
+    // Draw Axes (New Function)
+    drawAxes(ctxS, w, h, pad, 0, PCend, effectiveYMin, effectiveYMax, "mm", "mm", true);
+
+    const tx=x=>pad+(x/PCend)*w;
+    const ty=y=>pad+h-((y - effectiveYMin)/(effectiveYMax-effectiveYMin))*h; // Use effective range & invert Y
+
+    // Draw Cornea (dashed gray)
+    ctxS.save();
+    ctxS.setLineDash([4,4]);ctxS.strokeStyle="rgba(0,0,0,.5)";ctxS.lineWidth=1;
+    ctxS.beginPath();
+    validXVals.forEach((x,i)=>{const X=tx(x),Y=ty(validCorneaY[i]);if(i===0)ctxS.moveTo(X,Y);else ctxS.lineTo(X,Y);});
+    ctxS.stroke();
+    ctxS.restore();
+
+    // Draw Lens segments with color
     const seg=[[0,BCend,"red"],[BCend,RCend,"green"],[RCend,AC1end,"blue"],[AC1end,AC2end,"red"],[AC2end,PCend,"green"]];
-    seg.forEach(([s,e,col])=>{ctxS.strokeStyle=col;ctxS.beginPath();xVals.forEach((x,i)=>{if(x<s||x>e) return;const X=tx(x),Y=ty(lensY[i]);if(x<=s&&i!==0) ctxS.moveTo(X,Y); else if(i===0) ctxS.moveTo(X,Y); else ctxS.lineTo(X,Y);});ctxS.stroke();});
-    const marks=[0,BCend,RCend,AC1end,AC2end,PCend];ctxS.fillStyle="blue";ctxS.font="12px sans-serif";
-    marks.forEach(x=>{const y=lensSag(x,p,RCR,PCR);const X=tx(x),Y=ty(y);ctxS.beginPath();ctxS.arc(X,Y,3,0,2*Math.PI);ctxS.fill();ctxS.fillText(y.toFixed(3),X+8,Y-8);});
+    ctxS.lineWidth=1.5;
+    seg.forEach(([s,e,col])=>{
+      ctxS.strokeStyle=col;
+      ctxS.beginPath();
+      let started = false;
+      validIndices.forEach(i => {
+          const x = xVals[i];
+          if (x >= s && x <= e) {
+              const X = tx(x);
+              const Y = ty(validLensY[validIndices.indexOf(i)]); // Use index within validLensY
+              if (!started) {
+                  ctxS.moveTo(X, Y);
+                  started = true;
+              } else {
+                  ctxS.lineTo(X, Y);
+              }
+          }
+      });
+      if (started) ctxS.stroke(); // Only stroke if points were added
+    });
+
+    // Mark key points on lens + Annotation (integer µm)
+    const marks=[0,BCend,RCend,AC1end,AC2end,PCend].filter(x => x <= PCend); // Ensure marks are within range
+    ctxS.fillStyle="blue"; ctxS.font="10px sans-serif"; ctxS.textAlign = "left"; ctxS.textBaseline = "bottom";
+    marks.forEach(x=>{
+      const y=lensSag(x,p,RCR,PCR);
+      if (isNaN(y)) return; // Skip if sag is invalid at mark
+      const X=tx(x),Y=ty(y);
+      ctxS.beginPath();ctxS.arc(X,Y,3,0,2*Math.PI);ctxS.fill();
+      const label = Math.round(y*1000); // Convert to µm and round
+      ctxS.fillText(label,X+5,Y-5);
+    });
 
     /* ---- 泪膜厚度 ---- */
-    const tearVals=xVals.map((x,i)=>corneaY[i]-lensY[i]);
-    const zero=Math.min(...marks.map(x=>corneaSag(x,corneaR,ecc,CORNEA_AT0)-lensSag(x,p,RCR,PCR)));
-    const tearUM=tearVals.map(v=>(v-zero)*1000);
-    const tearCv=$("tearPlot"),ctxT=tearCv.getContext('2d');ctxT.clearRect(0,0,tearCv.width,tearCv.height);
-    const yTMin=0,yTMax=Math.max(...tearUM);
-    const ttY=y=>pad+h-((y-yTMin)/(yTMax-yTMin))*h,ttX=tx;
-    ctxT.strokeStyle="#000";ctxT.beginPath();ctxT.moveTo(pad,ttY(0));ctxT.lineTo(tearCv.width-pad,ttY(0));ctxT.moveTo(pad,pad);ctxT.lineTo(pad,tearCv.height-pad);ctxT.stroke();
-    ctxT.strokeStyle="purple";ctxT.beginPath();xVals.forEach((x,i)=>{const X=ttX(x),Y=ttY(tearUM[i]);if(i)ctxT.lineTo(X,Y);else ctxT.moveTo(X,Y);});ctxT.stroke();
-    ctxT.fillStyle="red";marks.forEach(x=>{const t=(corneaSag(x,corneaR,ecc,CORNEA_AT0)-lensSag(x,p,RCR,PCR)-zero)*1000;const X=ttX(x),Y=ttY(t);ctxT.beginPath();ctxT.arc(X,Y,3,0,2*Math.PI);ctxT.fill();ctxT.fillText(t.toFixed(2),X+10,Y-8);});
+    const tearVals=validIndices.map(i => corneaY[i]-lensY[i]);
+    const zero=Math.min(...marks.map(x=>{
+        const lSag = lensSag(x,p,RCR,PCR);
+        const cSag = corneaSag(x,corneaR,ecc,CORNEA_AT0);
+        return (isNaN(lSag) || isNaN(cSag)) ? Infinity : cSag - lSag; // Handle potential NaNs
+    }).filter(isFinite)); // Find minimum finite difference at marks
+
+    const tearUM=tearVals.map(v=>(v-zero)*1000).filter(t => !isNaN(t) && isFinite(t)); // Convert to µm, normalize, filter invalid
+
+    const tearCv=$("tearPlot"),ctxT=tearCv.getContext('2d');
+    ctxT.clearRect(0,0,tearCv.width,tearCv.height);
+
+    const yTMin=0; // Minimum thickness is always 0 after normalization
+    const yTMax= tearUM.length > 0 ? Math.max(...tearUM) : 100; // Default max if no valid points
+    const effectiveYTMax = yTMax * 1.1; // Add 10% headroom
+
+    // Draw Axes (New Function) - Y axis in µm
+    drawAxes(ctxT, w, h, pad, 0, PCend, yTMin, effectiveYTMax, "mm", "µm", true);
+
+    const ttX=tx; // Reuse x-transform from sag plot
+    const ttY=y=>pad+h-((y-yTMin)/(effectiveYTMax-yTMin))*h; // Y transform for tear plot
+
+    // Draw Tear Thickness Curve (Green) and Fill
+    ctxT.lineWidth=1.5;
+    ctxT.strokeStyle="green"; // Changed from purple to green per note
+    ctxT.fillStyle = 'rgba(0, 255, 0, 0.2)'; // Light green fill
+    ctxT.beginPath();
+    validXVals.forEach((x,i)=>{
+        const currentTear = (tearVals[i] - zero) * 1000;
+        if(isNaN(currentTear) || !isFinite(currentTear)) return; // Skip invalid points
+        const X=ttX(x);
+        const Y=ttY(currentTear);
+        if(i===0 || isNaN(tearVals[i-1])) ctxT.moveTo(X,Y); // Start new segment if first valid point or previous was NaN
+        else ctxT.lineTo(X,Y);
+    });
+
+    // Complete the path for filling
+    const lastValidX = validXVals.length > 0 ? ttX(validXVals[validXVals.length - 1]) : pad;
+    const firstValidX = validXVals.length > 0 ? ttX(validXVals[0]) : pad;
+    ctxT.lineTo(lastValidX, ttY(0)); // Line to bottom at last x
+    ctxT.lineTo(firstValidX, ttY(0)); // Line to bottom at first x
+    ctxT.closePath();
+
+    ctxT.fill(); // Fill the area
+    ctxT.stroke(); // Draw the curve outline
+
+
+    // Mark key points + Annotation (integer µm)
+    ctxT.fillStyle="red"; ctxT.font="10px sans-serif"; ctxT.textAlign = "left"; ctxT.textBaseline = "bottom";
+    marks.forEach(x=>{
+      const lSag = lensSag(x,p,RCR,PCR);
+      const cSag = corneaSag(x,corneaR,ecc,CORNEA_AT0);
+      if (isNaN(lSag) || isNaN(cSag)) return; // Skip if sag invalid
+      const t=(cSag-lSag-zero)*1000;
+      if (isNaN(t) || !isFinite(t)) return; // Skip invalid thickness
+      const X=ttX(x),Y=ttY(t);
+      ctxT.beginPath();ctxT.arc(X,Y,3,0,2*Math.PI);ctxT.fill();
+      const label = Math.round(t); // Round to integer µm
+      ctxT.fillText(label,X+5,Y-5);
+    });
+
 
     /* ---- 荧光素图 (物理模型) ---- */
-    const fluCv=$("fluoresceinPlot"),ctxF=fluCv.getContext('2d');ctxF.clearRect(0,0,fluCv.width,fluCv.height);
-    const cx=fluCv.width/2,cy=fluCv.height/2,plotR=Math.min(fluCv.width,fluCv.height)/2-pad,scale=plotR/PCend;
+    const fluCv=$("fluoresceinPlot"),ctxF=fluCv.getContext('2d');
+    ctxF.clearRect(0,0,fluCv.width,fluCv.height);
+    const cx=fluCv.width/2,cy=fluCv.height/2;
+    const fluPad = 5; // Smaller padding for fluorescein plot
+    const plotR=Math.min(cx, cy) - fluPad; // Usable radius for drawing
+    const scale=plotR/PCend; // mm per pixel radius
+
     const imgData=ctxF.createImageData(fluCv.width,fluCv.height);const data=imgData.data;
-    function interpT(r){
-      if(r>=PCend) return 0;
-      const idx=r/PCend*sample;const i=Math.floor(idx),f=idx-i;
-      if(i>=tearUM.length-1) return tearUM[tearUM.length-1];
-      return tearUM[i]*(1-f)+tearUM[i+1]*f;
+
+    // Precompute interpolated tear film thickness at pixel radius intervals
+    const tearUM_interp = {};
+    const maxPixelRadius = Math.ceil(plotR);
+    for(let pr = 0; pr <= maxPixelRadius; pr++) {
+        const r_mm = pr / scale; // Convert pixel radius to mm
+        if(r_mm > PCend) {
+           tearUM_interp[pr] = 0; // Outside lens
+           continue;
+        }
+        // Find indices in validXVals for interpolation
+        let idx1 = -1, idx2 = -1;
+        for (let i = 0; i < validXVals.length - 1; i++) {
+            if (validXVals[i] <= r_mm && validXVals[i+1] >= r_mm) {
+                idx1 = i;
+                idx2 = i + 1;
+                break;
+            }
+        }
+
+        if (idx1 !== -1) {
+            const x1 = validXVals[idx1], x2 = validXVals[idx2];
+            const t1 = (tearVals[idx1] - zero) * 1000;
+            const t2 = (tearVals[idx2] - zero) * 1000;
+            // Linear interpolation
+            const weight = (x2 - x1 > 1e-9) ? (r_mm - x1) / (x2 - x1) : 0;
+            const interpTear = t1 * (1 - weight) + t2 * weight;
+            tearUM_interp[pr] = (isNaN(interpTear) || !isFinite(interpTear)) ? 0 : Math.max(0, interpTear); // Ensure non-negative
+        } else if (validXVals.length > 0 && r_mm <= validXVals[0]) {
+             // Before first valid point
+             const firstTear = (tearVals[0] - zero) * 1000;
+             tearUM_interp[pr] = (isNaN(firstTear) || !isFinite(firstTear)) ? 0 : Math.max(0, firstTear);
+        } else if (validXVals.length > 0 && r_mm >= validXVals[validXVals.length - 1]) {
+             // After last valid point (but still within PCend)
+             const lastTear = (tearVals[validXVals.length - 1] - zero) * 1000;
+             tearUM_interp[pr] = (isNaN(lastTear) || !isFinite(lastTear)) ? 0 : Math.max(0, lastTear);
+        } else {
+            tearUM_interp[pr] = 0; // Default to 0 if no valid range found
+        }
     }
+
+
     for(let y=0;y<fluCv.height;y++){
       for(let x=0;x<fluCv.width;x++){
-        const dx=x-cx,dy=y-cy,r=Math.sqrt(dx*dx+dy*dy)/scale;
+        const dx=x-cx,dy=y-cy;
+        const pixelRadius = Math.round(Math.sqrt(dx*dx+dy*dy));
         let rgba;
-        if(r<=PCend){const t=interpT(r);rgba=fluoresceinRGB(t);}else{rgba=[255,255,255,255];}
-        const idx=(y*fluCv.width+x)*4;data[idx]=rgba[0];data[idx+1]=rgba[1];data[idx+2]=rgba[2];data[idx+3]=rgba[3];
+        if(pixelRadius <= maxPixelRadius){
+            const t = tearUM_interp[pixelRadius] !== undefined ? tearUM_interp[pixelRadius] : 0;
+            rgba=fluoresceinRGB(t);
+        }else{
+            rgba=[0,0,0,255]; // Black outside plot radius per note
+        }
+        const idx=(y*fluCv.width+x)*4;
+        data[idx]=rgba[0];data[idx+1]=rgba[1];data[idx+2]=rgba[2];data[idx+3]=rgba[3];
       }
     }
     ctxF.putImageData(imgData,0,0);
   }
 
+
   /* ---------- 绑定事件 ---------- */
   function bindEvents(){
     [...Object.values(inputs),...Object.values(formulas),...Object.values(segFormulas)].forEach(el=>el.addEventListener('input',computeAndDraw));
-    radiusIds.forEach(id=>radii[id].addEventListener('input',e=>{e.target.dataset.backend=displayMode==='radius'?parseFloat(e.target.value):toRadius(e.target.value);computeAndDraw();}));
-    segIds.forEach(id=>segs[id].addEventListener('input',e=>{e.target.dataset.backend=parseFloat(e.target.value);computeAndDraw();}));
+    radiusIds.forEach(id=>radii[id].addEventListener('input',e=>{
+        const inputVal = e.target.value;
+        let backendVal;
+        if (inputVal === "N/A" || inputVal.trim() === "") {
+            backendVal = NaN;
+        } else {
+            backendVal = displayMode==='radius'?parseFloat(inputVal):toRadius(inputVal);
+        }
+        e.target.dataset.backend = backendVal;
+        if(id === 'AC1R' && $("lockAC2R").checked) ac2rDelta=null; // Reset delta if AC1R manually changed while locked
+        computeAndDraw();
+    }));
+    segIds.forEach(id=>segs[id].addEventListener('input',e=>{
+        const inputVal = e.target.value;
+        e.target.dataset.backend = (inputVal === "N/A" || inputVal.trim() === "") ? NaN : parseFloat(inputVal);
+        computeAndDraw();
+    }));
     dispRadios.forEach(r=>r.addEventListener('change',e=>{displayMode=e.target.value;updateDisplayModeUI();}));
     $("lockFormula").addEventListener('change',computeAndDraw);
-    $("lockAC2R").addEventListener('change',()=>{ac2rDelta=null;computeAndDraw();});
+    $("lockAC2R").addEventListener('change',()=>{ac2rDelta=null;computeAndDraw();}); // Reset delta on lock change
     $("lockSegFormula").addEventListener('change',computeAndDraw);
   }
 
   /* ---------- 初始化 ---------- */
   function init(){
-    radiusIds.forEach(id=>radii[id].dataset.backend="8");
-    segIds.forEach(id=>segs[id].dataset.backend="0");
+    radiusIds.forEach(id=>radii[id].dataset.backend="8"); // Default valid value
+    segIds.forEach(id=>segs[id].dataset.backend="0");   // Default valid value
     bindEvents();
-    computeAndDraw();
+    computeAndDraw(); // Initial computation and draw
   }
   document.addEventListener('DOMContentLoaded',init);
 })();
