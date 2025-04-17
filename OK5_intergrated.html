@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gaush OK5 综合实验室 v13</title>
+  <!-- math.js for formula parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.2.1/math.min.js" integrity="sha512-VtnWaMtJXqcmxwDizzsWJOnZdX3Jaf9qlFWXEN4nL1KaoQzyNC+1f8lHFD6qd38cyfMgUeucF+pJCTc2p2SsVw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    *{box-sizing:border-box;font-family:Arial,sans-serif}
+    body{margin:0;background:#f5f7fa;color:#333}
+    h1{margin:10px 0;text-align:center}
+    #container{display:flex;gap:20px;padding:10px;align-items:flex-start}
+    #left{flex:0 0 360px;background:#fff;padding:15px;border:1px solid #ddd;border-radius:6px;box-shadow:2px 2px 6px rgba(0,0,0,.1)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(85px,1fr));gap:8px}
+    label{display:flex;flex-direction:column;font-size:13px}
+    input,select{padding:4px;font-size:13px}
+    fieldset{border:1px solid #ccc;padding:8px;margin-top:10px;border-radius:6px}
+    fieldset legend{font-weight:700;font-size:14px}
+    #right{flex:1;display:flex;flex-direction:column;gap:20px}
+    .canvas-box{background:#fff;padding:10px;border:1px solid #ddd;border-radius:6px;box-shadow:2px 2px 6px rgba(0,0,0,.1)}
+    canvas{width:520px;height:320px;border:1px solid #ccc;background:#fff;margin:0 auto;display:block}
+    @media(max-width:768px){#container{flex-direction:column}#left{width:auto}canvas{width:100%!important}}
+  </style>
+</head>
+<body>
+  <h1>Gaush OK5 综合实验室 v13</h1>
+  <div id="container">
+    <div id="left">
+      <!-- 基础输入 -->
+      <div class="grid" id="baseInputs">
+        <label>FlatK<input id="FlatK" type="number" step="0.25" value="45"></label>
+        <label>ecc<input id="ecc" type="number" step="0.1" value="0.4"></label>
+        <label>TP<input id="TP" type="number" step="0.25" value="3"></label>
+        <label>Jessen<input id="Jessen" type="number" step="0.25" value="0.75"></label>
+        <label>BOD<input id="BOD" type="number" step="0.1" value="6"></label>
+        <label>lensD<input id="lensD" type="number" step="0.1" value="10.6"></label>
+        <label>RCwidth<input id="RCwidth" type="number" step="0.1" value="0.7"></label>
+        <label>edgeLift<input id="edgeLift" type="number" step="0.01" value="0.1"></label>
+      </div>
+      <!-- 曲率公式 -->
+      <fieldset>
+        <legend>曲率公式 (可编辑)</legend>
+        <div class="grid">
+          <label>BC<input id="bc_formula" type="text" value="FlatK-TP-Jessen"></label>
+          <label>AC1<input id="ac1_formula" type="text" value="FlatK"></label>
+          <label>AC2<input id="ac2_formula" type="text" value="337.5/(337.5/FlatK+0.2)"></label>
+          <label>RC<input id="rc_formula" type="text" value="FlatK+1.5*TP"></label>
+          <label>PC<input id="pc_formula" type="text" value="FlatK-20*ecc"></label>
+        </div>
+      </fieldset>
+      <!-- 弧段直径公式 -->
+      <fieldset>
+        <legend>弧段终点直径公式 (可编辑)</legend>
+        <div class="grid">
+          <label>BCend<input id="bcend_formula" type="text" value="BOD/2"></label>
+          <label>RCend<input id="rcend_formula" type="text" value="BOD/2+RCwidth"></label>
+          <label>AC1end<input id="ac1end_formula" type="text" value="((lensD/2-0.5)-BOD/2-RCwidth)/2+BOD/2+RCwidth"></label>
+          <label>AC2end<input id="ac2end_formula" type="text" value="lensD/2-0.5"></label>
+          <label>PCend<input id="pcend_formula" type="text" value="lensD/2"></label>
+        </div>
+      </fieldset>
+      <!-- 显示模式 -->
+      <fieldset>
+        <legend>显示模式</legend>
+        <label><input type="radio" name="dispMode" value="radius" checked> 曲率半径 (mm)</label>
+        <label><input type="radio" name="dispMode" value="curvature"> 曲率 (D)</label>
+      </fieldset>
+      <!-- 曲率半径字段 -->
+      <fieldset>
+        <legend>曲率半径</legend>
+        <div class="grid" id="radiusGrid">
+          <label>BCR<input id="BCR" type="number" step="0.05"></label>
+          <label>AC1R<input id="AC1R" type="number" step="0.05"></label>
+          <label>AC2R<input id="AC2R" type="number" step="0.05"></label>
+          <label>RCR<input id="RCR" type="number" step="0.05"></label>
+          <label>PCR<input id="PCR" type="number" step="0.05"></label>
+        </div>
+      </fieldset>
+      <!-- 弧段直径字段 -->
+      <fieldset>
+        <legend>弧段终点直径 (mm)</legend>
+        <div class="grid" id="diameterGrid">
+          <label>BCend<input id="BCEND" type="number" step="0.05"></label>
+          <label>RCend<input id="RCEND" type="number" step="0.05"></label>
+          <label>AC1end<input id="AC1END" type="number" step="0.05"></label>
+          <label>AC2end<input id="AC2END" type="number" step="0.05"></label>
+          <label>PCend<input id="PCEND" type="number" step="0.05"></label>
+        </div>
+      </fieldset>
+      <label style="font-size:13px;display:block;margin-top:6px"><input id="lockFormula" type="checkbox" checked> 曲率半径跟随公式</label>
+      <label style="font-size:13px;display:block;margin-top:4px"><input id="lockAC2R" type="checkbox"> 锁定 AC2R 与 AC1R 差值</label>
+      <label style="font-size:13px;display:block;margin-top:4px"><input id="lockSegFormula" type="checkbox" checked> 直径跟随公式</label>
+    </div>
+    <!-- 右侧图形 -->
+    <div id="right">
+      <div class="canvas-box"><canvas id="fluoresceinPlot" width="520" height="320"></canvas></div>
+      <div class="canvas-box"><canvas id="tearPlot" width="520" height="320"></canvas></div>
+      <div class="canvas-box"><canvas id="sagPlot" width="520" height="320"></canvas></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id=>document.getElementById(id);
+  const SAFE=/^[0-9+\-*/().\sA-Za-z]*$/;
+  const kFields=["FlatK","ecc","TP","Jessen","BOD","lensD","RCwidth","edgeLift"];
+  const formulaIds=["bc_formula","ac1_formula","ac2_formula","rc_formula","pc_formula"];
+  const segmentFormulaIds=["bcend_formula","rcend_formula","ac1end_formula","ac2end_formula","pcend_formula"];
+  const radiusIds=["BCR","AC1R","AC2R","RCR","PCR"];
+  const segIds=["BCEND","RCEND","AC1END","AC2END","PCEND"];
+  const CORNEA_AT0=0.005;
+
+  /* ---------- 工具 ---------- */
+  const toRadius=K=>337.5/parseFloat(K);
+  const toCurvature=R=>337.5/parseFloat(R);
+  const clamp=(v,min,max)=>v<min?min:v>max?max:v;
+
+  /* ---------- DOM 缓存 ---------- */
+  const inputs={};kFields.forEach(id=>inputs[id]=$(id));
+  const formulas={};formulaIds.forEach(id=>formulas[id]=$(id));
+  const segFormulas={};segmentFormulaIds.forEach(id=>segFormulas[id]=$(id));
+  const radii={};radiusIds.forEach(id=>radii[id]=$(id));
+  const segs={};segIds.forEach(id=>segs[id]=$(id));
+  const dispRadios=[...document.querySelectorAll('input[name="dispMode"]')];
+
+  /* ---------- 状态 ---------- */
+  let displayMode="radius";    // radius | curvature
+  let ac2rDelta=null;           // AC2R-AC1R 差值
+
+  /* ---------- 数学函数 ---------- */
+  const Z=(x,R,k)=>{const t=1-(1+k)*(x*x)/(R*R);return (1/R)*(x*x)/(1+Math.sqrt(t>=0?t:0));};
+  const corneaSag=(x,R,e,at0)=>Z(x,R,-Math.sign(e)*(e*e))+at0;
+  const lensSag=(x,p,RCR,PCR)=>{
+    const {BCR,AC1R,AC2R,BCend,RCend,AC1end,AC2end,PCend,SagBCAt0}=p;
+    const SagAtBC= Z(BCend,BCR,0)+SagBCAt0;
+    const SagAtRC= Z(RCend,RCR,0)-Z(BCend,RCR,0)+SagAtBC;
+    const SagAtAC1=Z(AC1end,AC1R,0)-Z(RCend,AC1R,0)+SagAtRC;
+    const SagAtAC2=Z(AC2end,AC2R,0)-Z(AC1end,AC2R,0)+SagAtAC1;
+    if(x<=BCend) return Z(x,BCR,0)+SagBCAt0;
+    if(x<=RCend) return Z(x,RCR,0)-Z(BCend,RCR,0)+SagAtBC;
+    if(x<=AC1end) return Z(x,AC1R,0)-Z(RCend,AC1R,0)+SagAtRC;
+    if(x<=AC2end) return Z(x,AC2R,0)-Z(AC1end,AC2R,0)+SagAtAC1;
+    if(x<=PCend) return Z(x,PCR,0)-Z(AC2end,PCR,0)+SagAtAC2;
+    return NaN;
+  };
+  const tearSag=(x,p,RCR,PCR,corneaR,e)=>corneaSag(x,corneaR,e,CORNEA_AT0)-lensSag(x,p,RCR,PCR);
+
+  /* ---------- Beer–Lambert 映射 ---------- */
+  const I_MAX=275,uBlack = 2, h90=70,g_ratio=0.5,r_gamma=1.5;
+  const kBL=Math.log(I_MAX/(I_MAX*0.1))/h90; // ~0.07675
+  function fluoresceinRGB(thk){ // thk µm
+    const G=I_MAX*(1-uBlack*Math.exp(-kBL*thk));
+    const R=I_MAX*g_ratio*Math.pow(G/I_MAX,r_gamma);
+    return [R,G,0,255].map((v,i)=>i===3?v:clamp(Math.round(v),0,255));
+  }
+
+  /* ---------- 计算 & 绘图主流程 ---------- */
+  function computeAndDraw(){
+    // 1. 读取基础参数
+    const param={};kFields.forEach(id=>param[id]=parseFloat(inputs[id].value)||0);
+    // 2. 公式 -> K
+    const vars={...param};
+    let Kvals={};
+    formulaIds.forEach(id=>{
+      const expr=formulas[id].value.trim();
+      if(!SAFE.test(expr)){Kvals[id]=NaN;return;}
+      try{Kvals[id]=math.evaluate(expr,vars);}catch{Kvals[id]=NaN;}
+    });
+    // 3. 公式 -> 弧段终点
+    let SegVals={};
+    segmentFormulaIds.forEach(id=>{
+      const expr=segFormulas[id].value.trim();
+      if(!SAFE.test(expr)){SegVals[id]=NaN;return;}
+      try{SegVals[id]=math.evaluate(expr,vars);}catch{SegVals[id]=NaN;}
+    });
+
+    // 4. 半径来源
+    const lock=$("lockFormula").checked;
+    if(lock){
+      radii.BCR.dataset.backend=toRadius(Kvals.bc_formula);
+      radii.AC1R.dataset.backend=toRadius(Kvals.ac1_formula);
+      let ac2=toRadius(Kvals.ac2_formula);
+      if($("lockAC2R").checked){
+        if(ac2rDelta===null) ac2rDelta=ac2-parseFloat(radii.AC1R.dataset.backend);
+        ac2=parseFloat(radii.AC1R.dataset.backend)+ac2rDelta;
+      }
+      radii.AC2R.dataset.backend=ac2;
+      radii.RCR.dataset.backend=toRadius(Kvals.rc_formula);
+      radii.PCR.dataset.backend=toRadius(Kvals.pc_formula);
+    }
+
+    // 5. 弧段直径来源
+    const lockSeg=$("lockSegFormula").checked;
+    if(lockSeg){
+      segs.BCEND.dataset.backend=SegVals.bcend_formula;
+      segs.RCEND.dataset.backend=SegVals.rcend_formula;
+      segs.AC1END.dataset.backend=SegVals.ac1end_formula;
+      segs.AC2END.dataset.backend=SegVals.ac2end_formula;
+      segs.PCEND.dataset.backend=SegVals.pcend_formula;
+    }
+
+    // 6. 更新 UI
+    updateDisplayModeUI();
+    updateSegUI();
+
+    // 7. 绘图
+    drawPlots(param);
+  }
+
+  /* ---------- 显示模式转换 ---------- */
+  function updateDisplayModeUI(){
+    radiusIds.forEach(id=>{
+      const elem=radii[id];
+      const val=parseFloat(elem.dataset.backend)||0;
+      if(displayMode==="radius"){elem.step="0.05";elem.value=val.toFixed(4);}else{elem.step="0.25";elem.value=toCurvature(val).toFixed(2);}  });
+  }
+  function updateSegUI(){
+    segIds.forEach(id=>{
+      const elem=segs[id];
+      elem.value=(parseFloat(elem.dataset.backend)||0).toFixed(3);
+    });
+  }
+
+  /* ---------- 绘图 ---------- */
+  function drawPlots(param){
+    const ecc=param.ecc;
+    const BCend=parseFloat(segs.BCEND.dataset.backend),
+          RCend=parseFloat(segs.RCEND.dataset.backend),
+          AC1end=parseFloat(segs.AC1END.dataset.backend),
+          AC2end=parseFloat(segs.AC2END.dataset.backend),
+          PCend=parseFloat(segs.PCEND.dataset.backend);
+    const p={
+      BCR:parseFloat(radii.BCR.dataset.backend),
+      AC1R:parseFloat(radii.AC1R.dataset.backend),
+      AC2R:parseFloat(radii.AC2R.dataset.backend),
+      BCend,RCend,AC1end,AC2end,PCend,
+      SagBCAt0:0
+    };
+    const RCR=parseFloat(radii.RCR.dataset.backend),
+          PCR=parseFloat(radii.PCR.dataset.backend),
+          corneaR=toRadius(param.FlatK);
+
+    const sample=220,xVals=Array.from({length:sample+1},(_,i)=>i*PCend/sample);
+    const corneaY=xVals.map(x=>corneaSag(x,corneaR,ecc,CORNEA_AT0));
+    const lensY=xVals.map(x=>lensSag(x,p,RCR,PCR));
+
+    /* ---- 绘矢高图 ---- */
+    const sagCv=$("sagPlot"),ctxS=sagCv.getContext('2d');ctxS.clearRect(0,0,sagCv.width,sagCv.height);
+    const pad=40,w=sagCv.width-2*pad,h=sagCv.height-2*pad;
+    const yMin=Math.min(...corneaY,...lensY),yMax=Math.max(...corneaY,...lensY);
+    const tx=x=>pad+(x/PCend)*w,ty=y=>pad+((y - yMin)/(yMax-yMin))*h;
+    ctxS.strokeStyle="#000";ctxS.beginPath();ctxS.moveTo(pad,ty(0));ctxS.lineTo(sagCv.width-pad,ty(0));ctxS.moveTo(pad,pad);ctxS.lineTo(pad,sagCv.height-pad);ctxS.stroke();
+    ctxS.setLineDash([4,4]);ctxS.strokeStyle="rgba(0,0,0,.5)";ctxS.beginPath();xVals.forEach((x,i)=>{const X=tx(x),Y=ty(corneaY[i]);if(i)ctxS.lineTo(X,Y);else ctxS.moveTo(X,Y);});ctxS.stroke();ctxS.setLineDash([]);
+    const seg=[[0,BCend,"red"],[BCend,RCend,"green"],[RCend,AC1end,"blue"],[AC1end,AC2end,"red"],[AC2end,PCend,"green"]];
+    seg.forEach(([s,e,col])=>{ctxS.strokeStyle=col;ctxS.beginPath();xVals.forEach((x,i)=>{if(x<s||x>e) return;const X=tx(x),Y=ty(lensY[i]);if(x<=s&&i!==0) ctxS.moveTo(X,Y); else if(i===0) ctxS.moveTo(X,Y); else ctxS.lineTo(X,Y);});ctxS.stroke();});
+    const marks=[0,BCend,RCend,AC1end,AC2end,PCend];ctxS.fillStyle="blue";ctxS.font="12px sans-serif";
+    marks.forEach(x=>{const y=lensSag(x,p,RCR,PCR);const X=tx(x),Y=ty(y);ctxS.beginPath();ctxS.arc(X,Y,3,0,2*Math.PI);ctxS.fill();ctxS.fillText(y.toFixed(3),X+8,Y-8);});
+
+    /* ---- 泪膜厚度 ---- */
+    const tearVals=xVals.map((x,i)=>corneaY[i]-lensY[i]);
+    const zero=Math.min(...marks.map(x=>corneaSag(x,corneaR,ecc,CORNEA_AT0)-lensSag(x,p,RCR,PCR)));
+    const tearUM=tearVals.map(v=>(v-zero)*1000);
+    const tearCv=$("tearPlot"),ctxT=tearCv.getContext('2d');ctxT.clearRect(0,0,tearCv.width,tearCv.height);
+    const yTMin=0,yTMax=Math.max(...tearUM);
+    const ttY=y=>pad+h-((y-yTMin)/(yTMax-yTMin))*h,ttX=tx;
+    ctxT.strokeStyle="#000";ctxT.beginPath();ctxT.moveTo(pad,ttY(0));ctxT.lineTo(tearCv.width-pad,ttY(0));ctxT.moveTo(pad,pad);ctxT.lineTo(pad,tearCv.height-pad);ctxT.stroke();
+    ctxT.strokeStyle="purple";ctxT.beginPath();xVals.forEach((x,i)=>{const X=ttX(x),Y=ttY(tearUM[i]);if(i)ctxT.lineTo(X,Y);else ctxT.moveTo(X,Y);});ctxT.stroke();
+    ctxT.fillStyle="red";marks.forEach(x=>{const t=(corneaSag(x,corneaR,ecc,CORNEA_AT0)-lensSag(x,p,RCR,PCR)-zero)*1000;const X=ttX(x),Y=ttY(t);ctxT.beginPath();ctxT.arc(X,Y,3,0,2*Math.PI);ctxT.fill();ctxT.fillText(t.toFixed(2),X+10,Y-8);});
+
+    /* ---- 荧光素图 (物理模型) ---- */
+    const fluCv=$("fluoresceinPlot"),ctxF=fluCv.getContext('2d');ctxF.clearRect(0,0,fluCv.width,fluCv.height);
+    const cx=fluCv.width/2,cy=fluCv.height/2,plotR=Math.min(fluCv.width,fluCv.height)/2-pad,scale=plotR/PCend;
+    const imgData=ctxF.createImageData(fluCv.width,fluCv.height);const data=imgData.data;
+    function interpT(r){
+      if(r>=PCend) return 0;
+      const idx=r/PCend*sample;const i=Math.floor(idx),f=idx-i;
+      if(i>=tearUM.length-1) return tearUM[tearUM.length-1];
+      return tearUM[i]*(1-f)+tearUM[i+1]*f;
+    }
+    for(let y=0;y<fluCv.height;y++){
+      for(let x=0;x<fluCv.width;x++){
+        const dx=x-cx,dy=y-cy,r=Math.sqrt(dx*dx+dy*dy)/scale;
+        let rgba;
+        if(r<=PCend){const t=interpT(r);rgba=fluoresceinRGB(t);}else{rgba=[255,255,255,255];}
+        const idx=(y*fluCv.width+x)*4;data[idx]=rgba[0];data[idx+1]=rgba[1];data[idx+2]=rgba[2];data[idx+3]=rgba[3];
+      }
+    }
+    ctxF.putImageData(imgData,0,0);
+  }
+
+  /* ---------- 绑定事件 ---------- */
+  function bindEvents(){
+    [...Object.values(inputs),...Object.values(formulas),...Object.values(segFormulas)].forEach(el=>el.addEventListener('input',computeAndDraw));
+    radiusIds.forEach(id=>radii[id].addEventListener('input',e=>{e.target.dataset.backend=displayMode==='radius'?parseFloat(e.target.value):toRadius(e.target.value);computeAndDraw();}));
+    segIds.forEach(id=>segs[id].addEventListener('input',e=>{e.target.dataset.backend=parseFloat(e.target.value);computeAndDraw();}));
+    dispRadios.forEach(r=>r.addEventListener('change',e=>{displayMode=e.target.value;updateDisplayModeUI();}));
+    $("lockFormula").addEventListener('change',computeAndDraw);
+    $("lockAC2R").addEventListener('change',()=>{ac2rDelta=null;computeAndDraw();});
+    $("lockSegFormula").addEventListener('change',computeAndDraw);
+  }
+
+  /* ---------- 初始化 ---------- */
+  function init(){
+    radiusIds.forEach(id=>radii[id].dataset.backend="8");
+    segIds.forEach(id=>segs[id].dataset.backend="0");
+    bindEvents();
+    computeAndDraw();
+  }
+  document.addEventListener('DOMContentLoaded',init);
+})();
+</script>
+</body>
+</html>

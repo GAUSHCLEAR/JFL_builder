@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OK5 参数计算器</title>
+  <!-- 样式层 -->
+  <style>
+    :root {
+      font-family: system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f5f7fa;
+    }
+    .card {
+      background: #ffffff;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      width: clamp(340px, 90vw, 720px);
+    }
+    h1 {
+      margin-top: 0;
+      text-align: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 1rem;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+    }
+    .section-title {
+      margin: 1.5rem 0 0.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-bottom: 1px dashed #ddd;
+      padding-bottom: 0.25rem;
+    }
+    .output-row {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .output-row label {
+      font-weight: 600;
+    }
+  </style>
+  <!-- math.js (CDNJS with SRI) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.2.1/math.min.js" integrity="sha512-VtnWaMtJXqcmxwDizzsWJOnZdX3Jaf9qlFWXEN4nL1KaoQzyNC+1f8lHFD6qd38cyfMgUeucF+pJCTc2p2SsVw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <main class="card" aria-labelledby="title">
+    <h1 id="title">RGP 参数计算器</h1>
+    <!-- 输入参数 -->
+    <div class="section-title">输入参数</div>
+    <form id="param-form" onsubmit="event.preventDefault();">
+      <div class="grid">
+        <label>FlatK
+          <input id="flatK" type="number" step="0.01" min="0" value="45" />
+        </label>
+        <label>ecc
+          <input id="ecc" type="number" step="0.01" min="0" value="0.4" />
+        </label>
+        <label>TP
+          <input id="tp" type="number" step="0.01" min="0" value="3" />
+        </label>
+        <label>Jessen
+          <input id="jessen" type="number" step="0.01" min="0" value="0.75" />
+        </label>
+        <label>BOD
+          <input id="bod" type="number" step="0.01" min="0" value="6.0" />
+        </label>
+        <label>lensD
+          <input id="lensD" type="number" step="0.01" min="0" value="10.6" />
+        </label>
+        <label>edgeLift
+          <input id="edgeLift" type="number" step="0.01" min="0" value="0.1" />
+        </label>
+      </div>
+
+      <!-- 输出参数 -->
+      <div class="section-title">输出参数 (公式可编辑)</div>
+      <div id="output-container">
+        <div class="output-row">
+          <label>BC =
+            <input id="bc_formula" type="text" value="FlatK-TP-Jessen" />
+          </label>
+          <input id="bc_result" type="number" step="0.01" value="0" />
+        </div>
+        <div class="output-row">
+          <label>AC1 =
+            <input id="ac1_formula" type="text" value="FlatK" />
+          </label>
+          <input id="ac1_result" type="number" step="0.01" value="0" />
+        </div>
+        <div class="output-row">
+          <label>AC2 =
+            <input id="ac2_formula" type="text" value="337.5/(337.5/FlatK+0.2)" />
+          </label>
+          <input id="ac2_result" type="number" step="0.01" value="0" />
+        </div>
+        <div class="output-row">
+          <label>RC =
+            <input id="rc_formula" type="text" value="FlatK+1.5*TP" />
+          </label>
+          <input id="rc_result" type="number" step="0.01" value="0" />
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <script>
+    "use strict";
+
+    /* -------------------------- 安全辅助 -------------------------- */
+    const mathLib = window.math;
+    if (!mathLib || typeof mathLib.evaluate !== "function") {
+      throw new Error("表达式解析库加载失败 (math.js)");
+    }
+
+    // 允许字符：数字、字母、运算符、括号、空格、小数点
+    const SAFE_REGEX = /^[0-9+\-*/().\sA-Za-z]*$/;
+
+    /* -------------------------- DOM 缓存 -------------------------- */
+    const inputIds = ["flatK", "ecc", "tp", "jessen", "bod", "lensD", "edgeLift"];
+    const outputDefs = [
+      { name: "BC", formulaId: "bc_formula", resultId: "bc_result" },
+      { name: "AC1", formulaId: "ac1_formula", resultId: "ac1_result" },
+      { name: "AC2", formulaId: "ac2_formula", resultId: "ac2_result" },
+      { name: "RC", formulaId: "rc_formula", resultId: "rc_result" },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const inputEls = Object.fromEntries(inputIds.map((id) => [id, $(id)]));
+    const formulaEls = Object.fromEntries(outputDefs.map((d) => [d.formulaId, $(d.formulaId)]));
+    const resultEls = Object.fromEntries(outputDefs.map((d) => [d.resultId, $(d.resultId)]));
+
+    /* -------------------------- 核心计算 -------------------------- */
+    const computeOutputs = () => {
+      // 构建参数对象（变量名应和公式中的保持一致）
+      const params = {
+        FlatK: parseFloat(inputEls.flatK.value),
+        ecc: parseFloat(inputEls.ecc.value),
+        TP: parseFloat(inputEls.tp.value),
+        Jessen: parseFloat(inputEls.jessen.value),
+        BOD: parseFloat(inputEls.bod.value),
+        lensD: parseFloat(inputEls.lensD.value),
+        edgeLift: parseFloat(inputEls.edgeLift.value),
+      };
+
+      for (const { formulaId, resultId } of outputDefs) {
+        const formulaStr = formulaEls[formulaId].value.trim();
+        try {
+          if (formulaStr.length === 0) throw new Error("公式为空");
+          if (formulaStr.length > 120) throw new Error("公式过长");
+          if (!SAFE_REGEX.test(formulaStr)) throw new Error("非法字符");
+
+          const compiled = mathLib.compile(formulaStr);
+          const result = compiled.evaluate(params);
+          if (!Number.isFinite(result)) throw new Error("结果无效");
+          resultEls[resultId].value = Number(result).toFixed(2);
+        } catch (err) {
+          console.error(`公式 ${formulaId} 计算错误:`, err);
+          resultEls[resultId].value = "错误";
+        }
+      }
+    };
+
+    /* -------------------------- 事件绑定 -------------------------- */
+    // 输入参数 & 公式变化时重新计算
+    [...Object.values(inputEls), ...Object.values(formulaEls)].forEach((el) =>
+      el.addEventListener("input", computeOutputs)
+    );
+
+    // 用户手动修改结果字段时不触发计算，可根据需要绑定
+
+    // 初始计算
+    computeOutputs();
+
+    /* -------------------------- 单元测试 -------------------------- */
+    (function runTests() {
+      const params = {
+        FlatK: 45,
+        ecc: 0.4,
+        TP: 3,
+        Jessen: 0.75,
+        BOD: 6.0,
+        lensD: 10.6,
+        edgeLift: 0.1,
+      };
+      const test = (formula, expected, msg) => {
+        const result = mathLib.evaluate(formula, params);
+        console.assert(Math.abs(result - expected) < 1e-6, msg);
+      };
+      test("FlatK-TP-Jessen", 41.25, "BC 公式测试失败");
+      test("FlatK", 45, "AC1 公式测试失败");
+      test("337.5/(337.5/FlatK+0.2)", 42.689, "AC2 公式测试失败");
+      test("FlatK+1.5*TP", 49.5, "RC 公式测试失败");
+      console.info("所有单元测试通过 ✅");
+    })();
+  </script>
+</body>
+</html>

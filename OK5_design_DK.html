@@ -231,7 +231,7 @@
       <div style="margin-top:10px;">
         <button id="calculateBtn" style="padding:6px 12px;">计算曲率参数</button>
       </div>
-      <!-- 结果显示区域，此处将显示各弧段宽度和直径 -->
+      <!-- 结果显示区域，此处将显示各弧段宽度 -->
       <div id="results"></div>
     </div>
     
@@ -461,13 +461,6 @@
       // 计算各弧段宽度
       const { BC_width, RC_width, AC1_width, AC2_width, PC_width } = 
             computeSegmentWidths({ BCend, RCend, AC1end, AC2end, PCend });
-      
-      // 计算各弧段直径
-      const BC_diameter = 2 * BCend;
-      const RC_diameter = 2 * RCend;
-      const AC1_diameter = 2 * AC1end;
-      const AC2_diameter = 2 * AC2end;
-      const PC_diameter = 2 * PCend;
     
       const params = {
         BCR: computedBCR,
@@ -529,7 +522,7 @@
       // 更新显示模式后同步更新各输入框显示值
       updateDisplayMode();
     
-      // 修改“结果显示”部分：显示各弧段宽度和直径
+      // 修改“结果显示”部分：显示各弧段宽度而非止点位置
       document.getElementById("results").innerHTML = `
         <h2>各弧段宽度</h2>
         <ul>
@@ -538,14 +531,6 @@
           <li>AC1宽度 = ${AC1_width.toFixed(4)} mm</li>
           <li>AC2宽度 = ${AC2_width.toFixed(4)} mm</li>
           <li>PC宽度 = ${PC_width.toFixed(4)} mm</li>
-        </ul>
-        <h2>各弧段直径</h2>
-        <ul>
-          <li>BC直径 = ${BC_diameter.toFixed(4)} mm</li>
-          <li>RC直径 = ${RC_diameter.toFixed(4)} mm</li>
-          <li>AC1直径 = ${AC1_diameter.toFixed(4)} mm</li>
-          <li>AC2直径 = ${AC2_diameter.toFixed(4)} mm</li>
-          <li>PC直径 = ${PC_diameter.toFixed(4)} mm</li>
         </ul>
         <p>当前等高点: ${equalChoice}，请确认（修改）参数后观察图形更新。</p>
       `;
