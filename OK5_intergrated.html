@@ -43,8 +43,8 @@
         <legend>曲率公式 (可编辑)</legend>
         <div class="grid">
           <label>BC<input id="bc_formula" type="text" value="FlatK-TP-Jessen"></label>
-          <label>AC1<input id="ac1_formula" type="text" value="FlatK - 2 * ecc"></label> <!-- Formula Updated per note -->
-          <label>AC2<input id="ac2_formula" type="text" value="FlatK - 3 * ecc"></label> <!-- Formula Updated per note -->
+          <label>AC1<input id="ac1_formula" type="text" value="FlatK-ecc^2*FlatK^3/(2*337.5^2)*(BOD/2+RCwidth)^2"></label> <!-- Formula Updated per note -->
+          <label>AC2<input id="ac2_formula" type="text" value="FlatK-ecc^2*FlatK^3/(2*337.5^2)*(((lensD/2-0.5)-BOD/2-RCwidth)/2+BOD/2+RCwidth)^2"></label> <!-- Formula Updated per note -->
           <label>RC<input id="rc_formula" type="text" value="FlatK+1.5*TP"></label>
           <label>PC<input id="pc_formula" type="text" value="FlatK-20*ecc"></label>
         </div>
@@ -104,7 +104,8 @@
 (function(){
   "use strict";
   const $ = id=>document.getElementById(id);
-  const SAFE=/^[0-9+\-*/().\sA-Za-z]*$/;
+  // 修改 SAFE 正则表达式，添加 ^ 和 ,
+  const SAFE=/^[0-9+\-*/().\sA-Za-z^,]*$/;
   const kFields=["FlatK","ecc","TP","Jessen","BOD","lensD","RCwidth","edgeLift"];
   const formulaIds=["bc_formula","ac1_formula","ac2_formula","rc_formula","pc_formula"];
   const segmentFormulaIds=["bcend_formula","rcend_formula","ac1end_formula","ac2end_formula","pcend_formula"];
