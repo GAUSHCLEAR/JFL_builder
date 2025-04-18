@@ -91,6 +91,13 @@
       <label style="font-size:13px;display:block;margin-top:6px"><input id="lockFormula" type="checkbox" checked> 曲率半径跟随公式</label>
       <label style="font-size:13px;display:block;margin-top:4px"><input id="lockAC2R" type="checkbox"> 锁定 AC2R 与 AC1R 差值</label>
       <label style="font-size:13px;display:block;margin-top:4px"><input id="lockSegFormula" type="checkbox" checked> 直径跟随公式</label>
+      <!-- {{ 添加导入/导出按钮和文件输入框 }} -->
+      <div style="margin-top: 15px; display: flex; gap: 10px;">
+        <button id="exportBtn" style="padding: 5px 10px;">导出配置 (CSV)</button>
+        <button id="importBtn" style="padding: 5px 10px;">导入配置 (CSV)</button>
+        <input type="file" id="importFile" accept=".csv" style="display: none;">
+      </div>
+      <!-- {{ 结束添加 }} -->
     </div>
     <!-- 右侧图形 -->
     <div id="right">
@@ -569,6 +576,140 @@
   }
 
 
+  /* ---------- 导入/导出 ---------- */
+  // {{ 添加导出函数 }}
+  function exportCSV() {
+    const data = [];
+    const headers = [];
+
+    // 1. 基础参数
+    kFields.forEach(id => {
+      headers.push(id);
+      data.push(inputs[id].value);
+    });
+
+    // 2. 曲率公式
+    formulaIds.forEach(id => {
+      headers.push(id);
+      data.push(`"${formulas[id].value.replace(/"/g, '""')}"`); // Escape double quotes
+    });
+
+    // 3. 弧段直径公式
+    segmentFormulaIds.forEach(id => {
+      headers.push(id);
+      data.push(`"${segFormulas[id].value.replace(/"/g, '""')}"`); // Escape double quotes
+    });
+
+    // 4. 曲率半径 (使用 backend 值)
+    radiusIds.forEach(id => {
+      headers.push(id);
+      data.push(radii[id].dataset.backend || ''); // Use backend value
+    });
+
+    // 5. 弧段直径 (使用 backend 值)
+    segIds.forEach(id => {
+      headers.push(id);
+      data.push(segs[id].dataset.backend || ''); // Use backend value
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + headers.join(",") + "\n"
+      + data.join(",");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "ok5_config.csv");
+    document.body.appendChild(link); // Required for FF
+    link.click();
+    document.body.removeChild(link);
+  }
+  // {{ 结束添加导出函数 }}
+
+  // {{ 添加导入函数 }}
+  function importCSV(event) {
+    const file = event.target.files[0];
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split('\n');
+      if (lines.length < 2) {
+        alert("CSV 文件格式无效或为空。");
+        return;
+      }
+
+      const headers = lines[0].trim().split(',');
+      const values = lines[1].trim().split(','); // Assuming values don't contain commas for now
+
+      if (headers.length !== values.length) {
+        alert("CSV 文件头和值数量不匹配。");
+        return;
+      }
+
+      // 创建一个映射方便查找
+      const dataMap = {};
+      headers.forEach((header, index) => {
+        // Remove quotes if value was quoted
+        let value = values[index];
+        if (value.startsWith('"') && value.endsWith('"')) {
+          value = value.substring(1, value.length - 1).replace(/""/g, '"');
+        }
+        dataMap[header.trim()] = value;
+      });
+
+      try {
+        // 解锁所有锁定状态
+        $("lockFormula").checked = false;
+        $("lockAC2R").checked = false;
+        $("lockSegFormula").checked = false;
+        radii.AC2R.disabled = false; // 确保 AC2R 输入框可用
+        ac2rDelta = null; // 重置 delta
+
+        // 更新基础参数
+        kFields.forEach(id => {
+          if (dataMap[id] !== undefined) inputs[id].value = dataMap[id];
+        });
+
+        // 更新曲率公式
+        formulaIds.forEach(id => {
+          if (dataMap[id] !== undefined) formulas[id].value = dataMap[id];
+        });
+
+        // 更新弧段直径公式
+        segmentFormulaIds.forEach(id => {
+          if (dataMap[id] !== undefined) segFormulas[id].value = dataMap[id];
+        });
+
+        // 更新曲率半径 (更新 backend)
+        radiusIds.forEach(id => {
+          if (dataMap[id] !== undefined) radii[id].dataset.backend = dataMap[id];
+        });
+
+        // 更新弧段直径 (更新 backend)
+        segIds.forEach(id => {
+          if (dataMap[id] !== undefined) segs[id].dataset.backend = dataMap[id];
+        });
+
+        // 重新计算和绘图
+        computeAndDraw();
+        alert("配置导入成功！");
+
+      } catch (error) {
+        console.error("导入处理失败:", error);
+        alert("导入配置时出错，请检查文件格式或控制台输出。");
+      } finally {
+         // 清空文件输入框的值，以便可以再次选择同一个文件
+         event.target.value = null;
+      }
+    };
+    reader.readAsText(file);
+  }
+  // {{ 结束添加导入函数 }}
+
+
   /* ---------- 绑定事件 ---------- */
   function bindEvents(){
     [...Object.values(inputs),...Object.values(formulas),...Object.values(segFormulas)].forEach(el=>el.addEventListener('input',computeAndDraw));
@@ -642,6 +783,12 @@
 
     // 直径锁定复选框事件
     $("lockSegFormula").addEventListener('change',computeAndDraw);
+
+    // {{ 添加导入/导出按钮事件监听 }}
+    $("exportBtn").addEventListener('click', exportCSV);
+    $("importBtn").addEventListener('click', () => $("importFile").click()); // 触发隐藏的文件输入
+    $("importFile").addEventListener('change', importCSV);
+    // {{ 结束添加 }}
   }
 
   /* ---------- 初始化 ---------- */
