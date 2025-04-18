@@ -148,7 +148,7 @@
   const tearSag=(x,p,RCR,PCR,corneaR,e)=>corneaSag(x,corneaR,e,CORNEA_AT0)-lensSag(x,p,RCR,PCR);
 
   /* ---------- Beer–Lambert 映射 ---------- */
-  const I_MAX=275,uBlack = 2, h90=70,g_ratio=0.5,r_gamma=1.5;
+  const I_MAX=275,uBlack = 1.5, h90=70,g_ratio=0.5,r_gamma=1.5;
   const kBL=Math.log(I_MAX/(I_MAX*0.1))/h90; // ~0.07675
   function fluoresceinRGB(thk){ // thk µm
     const G=I_MAX*(1-uBlack*Math.exp(-kBL*thk));
@@ -176,28 +176,32 @@
       try{SegVals[id]=math.evaluate(expr,vars);}catch{SegVals[id]=NaN;}
     });
 
-    // 4. 半径来源
-    const lock=$("lockFormula").checked;
-    if(lock){
+    // 4. 半径来源 - 先根据公式锁定状态确定初始值
+    const lockFormulaChecked = $("lockFormula").checked;
+    if(lockFormulaChecked){
       radii.BCR.dataset.backend=toRadius(Kvals.bc_formula);
       radii.AC1R.dataset.backend=toRadius(Kvals.ac1_formula);
-      let ac2=toRadius(Kvals.ac2_formula);
-      if($("lockAC2R").checked){
-        if(ac2rDelta===null && !isNaN(parseFloat(radii.AC1R.dataset.backend)) && !isNaN(ac2)) {
-            ac2rDelta=ac2-parseFloat(radii.AC1R.dataset.backend);
-        }
-        if(ac2rDelta !== null && !isNaN(parseFloat(radii.AC1R.dataset.backend))) {
-             ac2=parseFloat(radii.AC1R.dataset.backend)+ac2rDelta;
-        }
-      } else {
-        ac2rDelta = null; // Reset delta if lock is unchecked
-      }
-      radii.AC2R.dataset.backend=ac2;
+      radii.AC2R.dataset.backend=toRadius(Kvals.ac2_formula); // Get initial AC2R from formula
       radii.RCR.dataset.backend=toRadius(Kvals.rc_formula);
       radii.PCR.dataset.backend=toRadius(Kvals.pc_formula);
     }
+    // 如果 lockFormulaChecked 为 false, dataset.backend 会保留手动输入的值
 
-    // 5. 弧段直径来源
+    // 5. 应用 AC2R 锁定约束 (如果激活) - 这会覆盖之前的 AC2R 值
+    const lockAC2RChecked = $("lockAC2R").checked;
+    if(lockAC2RChecked) {
+        const ac1r_val = parseFloat(radii.AC1R.dataset.backend);
+        // 仅当 delta 已计算且 AC1R 有效时才应用 delta
+        if (ac2rDelta !== null && !isNaN(ac1r_val)) {
+            const calculated_ac2r = ac1r_val + ac2rDelta;
+            radii.AC2R.dataset.backend = calculated_ac2r; // 强制更新 AC2R
+        }
+        // 如果 delta 为 null 或 AC1R 无效, AC2R 保持其当前值
+    }
+    // 注意：如果 lockAC2RChecked 为 false，ac2rDelta 在事件监听器中会被设为 null，
+    // 所以这里不需要显式处理解锁的情况。
+
+    // 6. 弧段直径来源
     const lockSeg=$("lockSegFormula").checked;
     if(lockSeg){
       segs.BCEND.dataset.backend=SegVals.bcend_formula;
@@ -206,12 +210,13 @@
       segs.AC2END.dataset.backend=SegVals.ac2end_formula;
       segs.PCEND.dataset.backend=SegVals.pcend_formula;
     }
+    // 如果 lockSeg 为 false, dataset.backend 会保留手动输入的值
 
-    // 6. 更新 UI
-    updateDisplayModeUI();
+    // 7. 更新 UI
+    updateDisplayModeUI(); // 会显示最终确定的 AC2R 值
     updateSegUI();
 
-    // 7. 绘图
+    // 8. 绘图
     drawPlots(param);
   }
 
@@ -566,26 +571,75 @@
   /* ---------- 绑定事件 ---------- */
   function bindEvents(){
     [...Object.values(inputs),...Object.values(formulas),...Object.values(segFormulas)].forEach(el=>el.addEventListener('input',computeAndDraw));
-    radiusIds.forEach(id=>radii[id].addEventListener('input',e=>{
-        const inputVal = e.target.value;
-        let backendVal;
-        if (inputVal === "N/A" || inputVal.trim() === "") {
-            backendVal = NaN;
-        } else {
-            backendVal = displayMode==='radius'?parseFloat(inputVal):toRadius(inputVal);
-        }
-        e.target.dataset.backend = backendVal;
-        if(id === 'AC1R' && $("lockAC2R").checked) ac2rDelta=null; // Reset delta if AC1R manually changed while locked
-        computeAndDraw();
-    }));
+
+    // 半径输入事件
+    radiusIds.forEach(id => {
+        const inputElement = radii[id];
+        inputElement.addEventListener('input', e => {
+            // 只有在 AC2R 锁未启用时，才允许手动修改 AC2R
+            if (id === 'AC2R' && $("lockAC2R").checked) {
+                return; // 如果 AC2R 被锁定，则忽略手动输入
+            }
+
+            const inputVal = e.target.value;
+            let backendVal;
+            if (inputVal === "N/A" || inputVal.trim() === "") {
+                backendVal = NaN;
+            } else {
+                backendVal = displayMode === 'radius' ? parseFloat(inputVal) : toRadius(inputVal);
+            }
+            e.target.dataset.backend = backendVal;
+
+            // 如果手动修改了 AC1R 或 AC2R（在未锁定时），则重置 delta
+            if ((id === 'AC1R' || id === 'AC2R') && !$("lockAC2R").checked) {
+                 ac2rDelta = null;
+            }
+            computeAndDraw();
+        });
+    });
+
+    // 弧段直径输入事件
     segIds.forEach(id=>segs[id].addEventListener('input',e=>{
         const inputVal = e.target.value;
         e.target.dataset.backend = (inputVal === "N/A" || inputVal.trim() === "") ? NaN : parseFloat(inputVal);
         computeAndDraw();
     }));
+
+    // 显示模式切换事件
     dispRadios.forEach(r=>r.addEventListener('change',e=>{displayMode=e.target.value;updateDisplayModeUI();}));
+
+    // 公式锁定复选框事件
     $("lockFormula").addEventListener('change',computeAndDraw);
-    $("lockAC2R").addEventListener('change',()=>{ac2rDelta=null;computeAndDraw();}); // Reset delta on lock change
+
+    // AC2R 锁定复选框事件
+    $("lockAC2R").addEventListener('change',(e)=>{
+        const isChecked = e.target.checked;
+        const ac1rInput = radii.AC1R;
+        const ac2rInput = radii.AC2R;
+
+        ac2rInput.disabled = isChecked; // 根据勾选状态启用/禁用 AC2R 输入框
+
+        if (isChecked) {
+            // 锁定：计算 delta
+            const ac1r_val = parseFloat(ac1rInput.dataset.backend);
+            const ac2r_val = parseFloat(ac2rInput.dataset.backend);
+            if (!isNaN(ac1r_val) && !isNaN(ac2r_val)) {
+                ac2rDelta = ac2r_val - ac1r_val;
+                console.log("AC2R Lock enabled. Delta calculated:", ac2rDelta);
+            } else {
+                ac2rDelta = null; // 如果值无效，无法计算 delta
+                console.warn("AC2R Lock enabled, but cannot calculate delta due to invalid AC1R/AC2R values.");
+            }
+        } else {
+            // 解锁：重置 delta
+            ac2rDelta = null;
+            console.log("AC2R Lock disabled. Delta reset.");
+        }
+        // 触发重新计算以应用锁定状态
+        computeAndDraw();
+    });
+
+    // 直径锁定复选框事件
     $("lockSegFormula").addEventListener('change',computeAndDraw);
   }
 
