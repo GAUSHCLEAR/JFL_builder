@@ -10,21 +10,40 @@
     *{box-sizing:border-box;font-family:Arial,sans-serif}
     body{margin:0;background:#f5f7fa;color:#333}
     h1{margin:10px 0;text-align:center}
-    #container{display:flex;gap:20px;padding:10px;align-items:flex-start}
-    #left{flex:0 0 360px;background:#fff;padding:15px;border:1px solid #ddd;border-radius:6px;box-shadow:2px 2px 6px rgba(0,0,0,.1)}
+    /* Modified #container: Set height and align items to stretch */
+    #container{display:flex;gap:20px;padding:10px;align-items:stretch; height: calc(100vh - 70px); /* Adjust based on actual h1 height and padding */}
+    /* Modified #left: Add overflow-y */
+    #left{flex:0 0 360px;background:#fff;padding:15px;border:1px solid #ddd;border-radius:6px;box-shadow:2px 2px 6px rgba(0,0,0,.1); overflow-y: auto;}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(85px,1fr));gap:8px}
-    label{display:flex;flex-direction:column;font-size:13px}
+    label{display:flex;flex-direction:column;font-size:13px} /* 这是全局样式 */
     input,select{padding:4px;font-size:13px}
     fieldset{border:1px solid #ccc;padding:8px;margin-top:10px;border-radius:6px}
     fieldset legend{font-weight:700;font-size:14px}
-    #right{flex:1;display:flex;flex-direction:column;gap:20px}
+
+    /* {{ 更新以下样式规则 }} */
+    #displayModeFieldset label {
+      display: flex;
+      flex-direction: row;  /* {{ 修改：确保是行布局，覆盖全局的 column }} */
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 5px;
+      font-size: 13px;      /* {{ 添加：保持字体大小一致性 }} */
+    }
+    #displayModeFieldset label:last-child {
+        margin-bottom: 0;
+    }
+    /* {{ 结束更新 }} */
+
+    /* Modified #right: Add overflow-y */
+    #right{flex:1;display:flex;flex-direction:column;gap:20px; overflow-y: auto;}
     .canvas-box{background:#fff;padding:10px;border:1px solid #ddd;border-radius:6px;box-shadow:2px 2px 6px rgba(0,0,0,.1)}
     canvas{width:520px;height:320px;border:1px solid #ccc;background:#fff;margin:0 auto;display:block}
-    @media(max-width:768px){#container{flex-direction:column}#left{width:auto}canvas{width:100%!important}}
+    /* Modified @media query: Reset height and overflow for column layout */
+    @media(max-width:768px){#container{flex-direction:column; height: auto; align-items: initial;} #left{width:auto; overflow-y: visible;} #right{overflow-y: visible;} canvas{width:100%!important}}
   </style>
 </head>
 <body>
-  <h1>Gaush OK5 综合实验室 v16</h1> <!-- Version Updated -->
+  <h1>Gaush OK5 综合实验室 v17</h1> <!-- Version Updated -->
   <div id="container">
     <div id="left">
       <!-- 基础输入 -->
@@ -43,8 +62,8 @@
         <legend>曲率公式 (可编辑)</legend>
         <div class="grid">
           <label>BC<input id="bc_formula" type="text" value="FlatK-TP-Jessen"></label>
-          <label>AC1<input id="ac1_formula" type="text" value="FlatK-ecc^2*FlatK^3/(2*337.5^2)*(BOD/2+RCwidth)^2"></label> <!-- Formula Updated per note -->
-          <label>AC2<input id="ac2_formula" type="text" value="FlatK-ecc^2*FlatK^3/(2*337.5^2)*(((lensD/2-0.5)-BOD/2-RCwidth)/2+BOD/2+RCwidth)^2"></label> <!-- Formula Updated per note -->
+          <label>AC1<input id="ac1_formula" type="text" value="FlatK-2*ecc"></label> <!-- Formula Updated per note -->
+          <label>AC2<input id="ac2_formula" type="text" value="FlatK-3*ecc"></label> <!-- Formula Updated per note -->
           <label>RC<input id="rc_formula" type="text" value="FlatK+1.5*TP"></label>
           <label>PC<input id="pc_formula" type="text" value="FlatK-20*ecc"></label>
         </div>
@@ -61,10 +80,10 @@
         </div>
       </fieldset>
       <!-- 显示模式 -->
-      <fieldset>
+      <fieldset id="displayModeFieldset"> <!-- {{ 添加 id }} -->
         <legend>显示模式</legend>
-        <label><input type="radio" name="dispMode" value="radius" checked> 曲率半径 (mm)</label>
-        <label><input type="radio" name="dispMode" value="curvature"> 曲率 (D)</label>
+        <label><input type="radio" name="dispMode" value="radius" > 曲率半径 (mm)</label>
+        <label><input type="radio" name="dispMode" value="curvature" checked> 曲率 (D)</label>
       </fieldset>
       <!-- 曲率半径字段 -->
       <fieldset>
@@ -424,7 +443,8 @@
       ctxS.beginPath();ctxS.arc(X,Y,3,0,2*Math.PI);ctxS.fill();
       const label = Math.round(y*1000); // Convert to µm and round
       // Adjust text position slightly based on inverted Y
-      ctxS.fillText(label,X+5,Y+10); // Place text below the point
+      // Increase horizontal offset from +5 to +10
+      ctxS.fillText(label,X+10,Y-5); // Place text below and further right of the point
     });
 
     /* ---- 泪膜厚度 ---- */
